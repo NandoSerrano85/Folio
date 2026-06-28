@@ -8,7 +8,9 @@ ACCOUNT ?=
 .DEFAULT_GOAL := help
 
 .PHONY: help build up down logs init-db auth-drive auth-gmail sync-drive \
-        discover reconcile fmt psql ps
+        discover reconcile fmt psql ps \
+        bootstrap verify oauth sync-gmail backup assist-list \
+        logs-worker logs-portal
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -52,3 +54,27 @@ fmt: ## Format Python with ruff (if installed)
 
 psql: ## Open a psql shell on the db service
 	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-folio} -d $${POSTGRES_DB:-folio}
+
+bootstrap: ## First-run setup: generate secrets, scaffold .env, make dirs
+	./scripts/bootstrap.sh
+
+verify: ## Post-deploy health checks (db, migrations, /health, worker import)
+	./scripts/verify.sh
+
+oauth: ## OAuth all accounts (interactive copy-URL/paste-code flow)
+	./scripts/oauth.sh
+
+sync-gmail: ## Run vendor-browser Gmail ingestion now (optionally ACCOUNT=...)
+	$(COMPOSE) run --rm worker sync-gmail $(if $(ACCOUNT),--account $(ACCOUNT),)
+
+backup: ## One-shot DB backup (pg_dump custom format + retention prune)
+	$(COMPOSE) run --rm backup
+
+assist-list: ## List pending human-assist tasks (un-ingestable vendor emails)
+	$(COMPOSE) run --rm worker assist-list
+
+logs-worker: ## Tail worker logs
+	$(COMPOSE) logs -f --tail=200 worker
+
+logs-portal: ## Tail portal logs
+	$(COMPOSE) logs -f --tail=200 portal

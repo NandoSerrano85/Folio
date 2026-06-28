@@ -19,5 +19,10 @@ typer>=0.12
 Pillow>=10.2
 imagehash>=4.3
 
+# Headless-browser vendor ingestion (Chromium driven via Playwright). The
+# browser binary itself is installed in the Dockerfile via `playwright install`.
+# RAM-heavy: runs ONE job at a time, off-hours only (see config browser_*).
+playwright>=1.44
+
 # argon2id hashing for seeding the portal admin user during `worker init-db`.
 argon2-cffi>=23.1

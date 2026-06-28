@@ -42,15 +42,25 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
     # Default command: run the scheduler loop. The entrypoint applies migrations
     # first. Override with e.g. `docker compose run --rm worker init-db`.
     command: ["schedule"]
     volumes:
+      # .env is read DIRECTLY by the app (pydantic-settings, cwd /app) instead
+      # of injected via compose `env_file:`. Compose interpolates env_file
+      # values, which mangles `$`-laden secrets like ACCESS_TOKEN_HASH (argon2);
+      # pydantic never interpolates, so the value survives intact.
+      - ./.env:/app/.env:ro          # ro: app config/secrets (read by the app)
       - media:/data/media            # rw: writes original images
       - thumbnails:/data/thumbnails  # rw: may pre-generate thumbnails
       - tokens:/data/tokens          # rw: stores encrypted OAuth tokens
+      - backups:/data/backups        # rw: pg_dump archives (worker backup-db)
+      - browser_tmp:/data/tmp        # rw: browser downloads + single-job lock
       - ./secrets:/data/secrets:ro   # ro: Google client secrets JSON
+    # Chromium needs more than the default 64 MB /dev/shm. We give it 512 MB
+    # AND pass --disable-dev-shm-usage in code, so a single headless tab never
+    # exhausts shared memory. Vendor-browser jobs run ONE AT A TIME, off-hours.
+    shm_size: "512mb"
     mem_limit: 2.5g
 
   portal:
@@ -61,17 +71,40 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
     ports:
       - "8080:8080"
     volumes:
+      - ./.env:/app/.env:ro          # ro: app config/secrets (read by the app)
       - media:/data/media:ro         # ro: serves original bytes
       - thumbnails:/data/thumbnails  # rw: thumbnail cache
       - tokens:/data/tokens:ro       # ro: never mutates tokens
     mem_limit: 1g
+
+  # One-shot DB backup. Not started by `docker compose up` (it's behind the
+  # "backup" profile); invoke explicitly:
+  #   docker compose run --rm backup
+  #   docker compose --profile backup up backup
+  # Reuses the worker image so pg_dump (postgresql-client) + folio_core are
+  # already present. Writes a timestamped custom-format dump into /data/backups
+  # and prunes archives older than BACKUP_RETENTION_DAYS.
+  backup:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    profiles: ["backup"]
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["backup-db"]
+    volumes:
+      - ./.env:/app/.env:ro          # ro: app config/secrets (read by the app)
+      - backups:/data/backups        # rw: pg_dump archives
+    mem_limit: 512m
 
 volumes:
   pgdata:
   media:        # single shared library volume (worker rw, portal ro)
   thumbnails:
   tokens:
+  backups:      # timestamped pg_dump archives (worker rw, backup rw)
+  browser_tmp:  # vendor-browser downloads + the single-job flock

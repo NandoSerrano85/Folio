@@ -50,6 +50,22 @@ def decrypt_token(ciphertext: bytes) -> str:
     return _fernet().decrypt(ciphertext).decode("utf-8")
 
 
+def encrypt_value(plaintext: str) -> str:
+    """Encrypt an arbitrary string, returning ciphertext as a ``str``.
+
+    Generic counterpart to :func:`encrypt_token`; the result is a Fernet token
+    (urlsafe base64 text) suitable for storing in a Text column such as the
+    ``*_enc`` vendor-credential fields. Uses the same ``FERNET_KEY``.
+    """
+    return _fernet().encrypt(plaintext.encode("utf-8")).decode("ascii")
+
+
+def decrypt_value(ciphertext: str) -> str:
+    """Decrypt a ciphertext string produced by :func:`encrypt_value`."""
+    token = ciphertext.encode("ascii") if isinstance(ciphertext, str) else ciphertext
+    return _fernet().decrypt(token).decode("utf-8")
+
+
 def _ref_to_filename(ref: str) -> str:
     safe = _REF_SAFE.sub("_", ref.strip()).strip("_") or "account"
     return f"{safe}{_TOKEN_SUFFIX}"
@@ -86,6 +102,8 @@ def load_token(ref: str, *, token_dir: Path | None = None) -> str | None:
 __all__ = [
     "encrypt_token",
     "decrypt_token",
+    "encrypt_value",
+    "decrypt_value",
     "save_token",
     "load_token",
     "token_path",

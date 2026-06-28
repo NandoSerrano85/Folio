@@ -120,6 +120,13 @@ function renderSidebar() {
   for (const f of state.foldersFlat) {
     collList.appendChild(folderRow({ id: f.id, name: f.name, count: f.image_count, depth: f.depth }));
   }
+  // "+ New collection" — sits at the foot of the Collections list and reuses the
+  // folder-row affordance (same hover/padding/radius) so it reads as part of the
+  // list. Muted text marks it as an action rather than a real collection.
+  collList.appendChild(el("button", {
+    class: "folder-row add-collection",
+    onClick: createCollection,
+  }, [el("span", { class: "folder-name", style: { color: "var(--muted)" }, text: "+ New collection" })]));
   aside.appendChild(collList);
 
   // Source account
@@ -236,6 +243,31 @@ function dateRow() {
     el("div", { class: "date-col" }, [el("div", { class: "date-cap", text: "From" }), from]),
     el("div", { class: "date-col" }, [el("div", { class: "date-cap", text: "To" }), to]),
   ]);
+}
+
+// -------------------------------------------------------- collection CRUD -- //
+/**
+ * Prompt for a name and create a top-level collection, then refresh the tree.
+ * Uses the FROZEN api.createFolder contract (POST /api/folders). The new folder
+ * is created at the root (no parent); nesting/re-parenting stays a server-side
+ * concern. loadReference() re-fetches folders+counts, which re-renders the
+ * sidebar via the foldersFlat state key.
+ */
+async function createCollection() {
+  // window.prompt returns the raw string (or null on cancel). The name is only
+  // ever rendered via textContent (el's `text`), never innerHTML, so it cannot
+  // inject markup; the server also enforces length bounds.
+  const raw = window.prompt("Name your new collection");
+  if (raw == null) return; // cancelled
+  const name = raw.trim();
+  if (!name) return; // empty/whitespace -> no-op (server would 422 anyway)
+  try {
+    await api.createFolder(name);
+    await loadReference();
+    toast(`Created collection · ${name}`);
+  } catch (e) {
+    toast("Could not create collection.");
+  }
 }
 
 // --------------------------------------------------------- filter actions -- //

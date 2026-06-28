@@ -16,6 +16,8 @@ env/
 # --- Secrets / env ---
 .env
 *.local.env
+# transient secret-generator program written by scripts/bootstrap.sh
+.bootstrap-gen.*.py
 
 # --- Encrypted OAuth tokens ---
 **/tokens/*

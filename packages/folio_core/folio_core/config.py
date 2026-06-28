@@ -122,6 +122,63 @@ class Settings(BaseSettings):
     sync_drive_interval_minutes: int = Field(default=30)
     discover_senders_interval_minutes: int = Field(default=720)
     reconcile_interval_minutes: int = Field(default=1440)
+    gmail_sync_interval_minutes: int = Field(
+        default=360,
+        description=(
+            "How often the vendor-browser Gmail ingestion runs. Only fires "
+            "inside the off-hours window and when browser_enabled is True."
+        ),
+    )
+
+    # ------------------------------------------------------------------ #
+    # Vendor browser (Playwright/Chromium) — RAM-constrained, off-hours only
+    # ------------------------------------------------------------------ #
+    browser_enabled: bool = Field(
+        default=True,
+        description="Master switch for the headless-browser vendor ingestion.",
+    )
+    browser_headless: bool = Field(
+        default=True,
+        description="Run Chromium headless (always True in production).",
+    )
+    browser_nav_timeout_seconds: int = Field(
+        default=45,
+        description="Per-navigation timeout for Playwright page operations.",
+    )
+    browser_download_dir: Path = Field(
+        default=Path("/data/tmp/downloads"),
+        description="Scratch directory for browser-downloaded originals.",
+    )
+    browser_offhours_start: int = Field(
+        default=1,
+        description=(
+            "Local-hour (settings.timezone) the browser window opens; the job "
+            "runs only when start <= hour < end."
+        ),
+    )
+    browser_offhours_end: int = Field(
+        default=6,
+        description="Local-hour the browser window closes (exclusive).",
+    )
+    vendor_browser_max_jobs: int = Field(
+        default=1,
+        description=(
+            "Max concurrent vendor-browser jobs. MUST stay 1 on 8 GB RAM — "
+            "Chromium is memory-hungry."
+        ),
+    )
+
+    # ------------------------------------------------------------------ #
+    # Database backups (pg_dump custom format)
+    # ------------------------------------------------------------------ #
+    backup_dir: Path = Field(
+        default=Path("/data/backups"),
+        description="Destination for timestamped pg_dump archives.",
+    )
+    backup_retention_days: int = Field(
+        default=14,
+        description="Dumps older than this many days are pruned after a backup.",
+    )
 
     # ------------------------------------------------------------------ #
     # Misc

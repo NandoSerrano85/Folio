@@ -289,3 +289,157 @@ docker compose run --rm worker sh -c 'rm -rf /data/thumbnails/*'
 
 For backups, redeploys/updates, memory tuning, and the OAuth/headless flow, see
 **[../DEPLOY-QNAP.md](../DEPLOY-QNAP.md)** (sections 12, 13, 11, and 7).
+
+---
+
+## 10. Backups & restore (`pg_dump` custom format)
+
+Folio ships a first-class database backup path that is independent of the
+DEPLOY-QNAP §12 `pg_backup.sh` recipe (which uses plain SQL `pg_dump`). This one
+produces a **custom-format** (`pg_dump -Fc`) archive, which restores with
+`pg_restore` and supports selective restore.
+
+### Taking a backup — `backup-db`
+
+The `worker backup-db` verb is implemented in `services/worker/worker/backup.py`
+and wired to a profile-gated one-shot **`backup`** compose service:
+
+```bash
+# Preferred: the dedicated one-shot service (mem_limit 512m, off the always-on stack)
+docker compose run --rm backup
+
+# Equivalent verb on the worker image:
+docker compose run --rm worker backup-db
+```
+
+What it does:
+
+- Runs `pg_dump --format=custom` against `DATABASE_URL` and writes
+  `folio-<UTC-timestamp>.dump` (e.g. `folio-20260627T010000Z.dump`) into
+  **`BACKUP_DIR`** (default `/data/backups`), which is the **`backups`** named
+  volume (worker + backup containers mount it read-write).
+- Prunes archives older than **`BACKUP_RETENTION_DAYS`** (default `14`).
+- **Never logs credentials** — only the `host:port/db` target and the output
+  filename/size are logged. (The connection URL with the password is passed as a
+  `pg_dump` argv and is briefly visible in the container process list during the
+  dump; it is never written to logs.)
+
+Schedule it nightly with the **QTS Task Scheduler** (a `docker compose run --rm
+backup` user-defined script), the same way as the §12 recipe — Folio's
+APScheduler handles *app* jobs only, not OS-level backups.
+
+### Inspecting / listing archives
+
+```bash
+docker compose run --rm --no-deps --entrypoint sh backup -c 'ls -1t /data/backups/folio-*.dump'
+# or:
+scripts/restore.sh --list
+```
+
+### Restoring — `scripts/restore.sh`
+
+Because the dump is custom format it is restored with `pg_restore`, **not**
+`psql`. Use the helper:
+
+```bash
+scripts/restore.sh --list                          # show dumps in the backups volume
+scripts/restore.sh folio-20260627T010000Z.dump     # restore a dump from the volume
+scripts/restore.sh /share/Backups/folio/x.dump     # restore a dump file on the host
+scripts/restore.sh --yes <name|path>               # skip the typed confirmation
+```
+
+The script streams the chosen dump into `pg_restore --clean --if-exists
+--no-owner` inside the running `db` container. It is **destructive**
+(`--clean` drops existing objects first), so it requires you to type the
+database name to proceed. Harmless `... does not exist, skipping` messages on the
+first `--clean` pass of a fresh DB are expected. Stop the readers/writers first
+for a clean restore:
+
+```bash
+docker compose stop portal worker
+scripts/restore.sh folio-20260627T010000Z.dump
+docker compose up -d
+```
+
+> Rolling back a bad migration: down-migrations are not part of normal ops —
+> restore the most recent pre-upgrade `.dump` instead (DEPLOY-QNAP §13).
+
+### Getting the backups OFF the NAS
+
+The `backups` volume lives on the NAS. **Include `/data/backups` (the `backups`
+volume) in the QNAP backup job** (Hybrid Backup Sync / HBS 3), alongside
+`media/`, `.env`, and `tokens/` (DEPLOY-QNAP §12). A backup that never leaves the
+box does not survive a disk failure. To park dumps directly on a QNAP-backed
+share instead of the named volume, point `BACKUP_DIR` at a bind-mounted path.
+
+---
+
+## 11. Scheduler — the off-hours `sync-gmail` job (update to §4)
+
+§4 listed three interval jobs and noted `sync-gmail` was a stub left off the
+scheduler. As of Phase-2 the `schedule` command (`services/worker/worker/main.py`)
+registers a **fourth** job:
+
+| Job id | Calls | Interval env key | Default |
+| --- | --- | --- | --- |
+| `sync-gmail` | `run_gmail_sync(None)` | `GMAIL_SYNC_INTERVAL_MINUTES` | 360 min (6h) |
+
+This is the **vendor-browser** email-image ingestion path and it is RAM-heavy
+(headless Chromium). It is therefore **double-gated** and its body self-skips
+unless **both** hold at the interval tick:
+
+1. **`BROWSER_ENABLED=true`** — the master switch (skips with
+   `scheduler.skip job=sync-gmail reason=browser_disabled` when off).
+2. The local hour (in `TIMEZONE`) is inside the off-hours window
+   **`[BROWSER_OFFHOURS_START, BROWSER_OFFHOURS_END)`** (defaults `1`–`6`, i.e.
+   01:00–06:00). Outside it: `scheduler.skip ... reason=outside_offhours`.
+
+Like the other jobs it is `max_instances=1` + `coalesce=True`. Combined with
+**`VENDOR_BROWSER_MAX_JOBS=1`** (which **must stay `1`** on the 8 GB box) this
+guarantees **one** browser job runs at a time, off-hours only — the worker's
+2.5 g cap and the compose `shm_size: 512mb` are sized around that single tab.
+
+Tuning: edit `GMAIL_SYNC_INTERVAL_MINUTES`, `BROWSER_ENABLED`,
+`BROWSER_OFFHOURS_START`/`_END`, or `TIMEZONE` in `.env`, then
+`docker compose up -d` (no live reload). To run an ad-hoc vendor-browser sync
+outside the window: `docker compose run --rm worker sync-gmail`.
+
+---
+
+## 12. The Assist queue (semi-automated CAPTCHA / login fallback)
+
+Some vendor emails can't be auto-ingested — there's no browser adapter for the
+vendor, the download sits behind a CAPTCHA, or a login failed. Rather than drop
+those, `run_gmail_sync` records an **`assist_tasks`** row (status `pending`) so a
+human can finish the job. Rows are idempotent on
+`UNIQUE(account_id, email_message_id, vendor_url)`, so re-runs never duplicate a
+task.
+
+**Lifecycle:** `pending` → (`in_progress` when a worker/browser claims it) →
+terminal `resolved` / `failed` / `skipped`. `reason` records why it landed
+(`no_adapter`, `captcha`, `login_failed`).
+
+**Day-2 flow:**
+
+```bash
+# 1. See what needs a human (pending tasks: id, vendor, subject, sender, url):
+docker compose run --rm worker assist-list
+
+# 2. Open the vendor URL from the task, download the ORIGINAL image yourself,
+#    and copy/mount it where the worker can read it (e.g. under a mounted path).
+
+# 3. Resolve the task by ingesting that original for the specific task id:
+docker compose run --rm worker assist-resolve --id 42 --file /data/tmp/order-original.jpg
+```
+
+`assist-resolve` runs the supplied file through the normal pipeline
+(`source_type=email`, `source_id=` the Gmail message id, `source_date=` the email
+Date header), then sets the task to `resolved` with `resolved_image_id` and
+`resolved_at`. Ingestion stays **idempotent** and **date-preserving** exactly as
+in §5 — the manually-fetched original is deduped on its sha256 and EXIF-stamped
+like any other image.
+
+> Implementation note: `assist-list` / `assist-resolve` lazily import
+> `worker.assist`, following the same lazy-leaf pattern as the other verbs (§2).
+> Until that leaf module ships they raise `ImportError` and only those two
+> commands are affected — the rest of the CLI keeps working.

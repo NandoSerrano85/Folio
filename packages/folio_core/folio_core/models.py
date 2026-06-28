@@ -64,6 +64,16 @@ class IngestStatusEnum(str, enum.Enum):
     interrupted = "interrupted"
 
 
+class AssistStatusEnum(str, enum.Enum):
+    """Lifecycle of a human-assist task for an un-automatable vendor email."""
+
+    pending = "pending"
+    in_progress = "in_progress"
+    resolved = "resolved"
+    failed = "failed"
+    skipped = "skipped"
+
+
 # Reusable column type objects. ``create_type=False`` because the enum types are
 # created explicitly in migration 0001; native_enum keeps them as real PG enums.
 provider_enum = SAEnum(
@@ -83,6 +93,9 @@ cursor_type_enum = SAEnum(
 )
 ingest_status_enum = SAEnum(
     IngestStatusEnum, name="ingest_status_enum", native_enum=True, create_type=False
+)
+assist_status_enum = SAEnum(
+    AssistStatusEnum, name="assist_status_enum", native_enum=True, create_type=False
 )
 
 
@@ -141,6 +154,14 @@ class Vendor(Base):
 
     sources: Mapped[list["ImageSource"]] = relationship(back_populates="vendor")
     senders: Mapped[list["Sender"]] = relationship(back_populates="vendor")
+    credential: Mapped["VendorCredential | None"] = relationship(
+        back_populates="vendor",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    assist_tasks: Mapped[list["AssistTask"]] = relationship(
+        back_populates="vendor"
+    )
 
 
 class Image(Base):
@@ -389,6 +410,99 @@ class IngestRun(Base):
     account: Mapped["Account"] = relationship(back_populates="ingest_runs")
 
 
+class VendorCredential(Base):
+    """Fernet-encrypted login credentials for a vendor's browser download flow.
+
+    Exactly one credential set per vendor. All ``*_enc`` columns hold Fernet
+    ciphertext strings produced by ``folio_core.crypto.encrypt_value`` — never
+    plaintext. ``extra_enc`` is encrypted JSON for cookies / 2FA / free-form
+    notes the adapter may need.
+    """
+
+    __tablename__ = "vendor_credentials"
+    __table_args__ = (
+        UniqueConstraint("vendor_id", name="uq_vendor_credentials_vendor_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vendor_id: Mapped[int] = mapped_column(
+        ForeignKey("vendors.id", ondelete="CASCADE"), nullable=False
+    )
+    login_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    username_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    secret_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extra_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    vendor: Mapped["Vendor"] = relationship(back_populates="credential")
+
+
+class AssistTask(Base):
+    """A human-assist task for a vendor email Folio could not auto-ingest.
+
+    Created when the vendor browser flow cannot complete unattended (no adapter,
+    captcha, login failure, ...). A human resolves it by uploading the original
+    image, which the worker ingests through the common pipeline and links back
+    via ``resolved_image_id``. Idempotent per (account, email message, url).
+    """
+
+    __tablename__ = "assist_tasks"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "email_message_id",
+            "vendor_url",
+            name="uq_assist_tasks_account_message_url",
+        ),
+        Index("ix_assist_tasks_status", "status"),
+        Index("ix_assist_tasks_account_id", "account_id"),
+        Index("ix_assist_tasks_vendor_id", "vendor_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    vendor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True
+    )
+    email_message_id: Mapped[str] = mapped_column(Text, nullable=False)
+    email_subject: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email_sender: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    vendor_url: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[AssistStatusEnum] = mapped_column(
+        assist_status_enum,
+        nullable=False,
+        default=AssistStatusEnum.pending,
+    )
+    resolved_image_id: Mapped[int | None] = mapped_column(
+        ForeignKey("images.id", ondelete="SET NULL"), nullable=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    account: Mapped["Account"] = relationship()
+    vendor: Mapped["Vendor | None"] = relationship(back_populates="assist_tasks")
+    resolved_image: Mapped["Image | None"] = relationship()
+
+
 class User(Base):
     """Portal login user. Seeded with one admin from env on first boot."""
 
@@ -415,6 +529,7 @@ __all__ = [
     "SourceTypeEnum",
     "CursorTypeEnum",
     "IngestStatusEnum",
+    "AssistStatusEnum",
     "Account",
     "Vendor",
     "Image",
@@ -424,5 +539,7 @@ __all__ = [
     "FolderImage",
     "SyncState",
     "IngestRun",
+    "VendorCredential",
+    "AssistTask",
     "User",
 ]

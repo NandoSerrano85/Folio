@@ -38,6 +38,21 @@ def _get_folder_or_404(db: Session, folder_id: int) -> Folder:
     return folder
 
 
+def _clean_name(raw: str) -> str:
+    """Trim a folder name and reject it if it is empty/whitespace-only.
+
+    Pydantic's ``min_length=1`` runs BEFORE we strip, so a name like ``"   "``
+    passes validation yet would persist as an empty string. Strip first, then
+    422 on empty so the DB never stores a blank collection name.
+    """
+    name = (raw or "").strip()
+    if not name:
+        raise HTTPException(
+            status_code=422, detail="Folder name cannot be empty"
+        )
+    return name
+
+
 def _would_create_cycle(db: Session, folder_id: int, new_parent_id: int) -> bool:
     """True if setting ``new_parent_id`` as parent of ``folder_id`` loops."""
     if new_parent_id == folder_id:
@@ -100,9 +115,11 @@ def folder_tree(db: Session = Depends(get_db)) -> list[FolderNode]:
 def create_folder(
     payload: FolderCreate, db: Session = Depends(get_db)
 ) -> FolderOut:
+    # A brand-new folder has no id yet, so pointing it at any existing parent
+    # can never form a cycle — only re-parenting (PATCH) needs the cycle guard.
     if payload.parent_id is not None:
         _get_folder_or_404(db, payload.parent_id)
-    folder = Folder(name=payload.name.strip(), parent_id=payload.parent_id)
+    folder = Folder(name=_clean_name(payload.name), parent_id=payload.parent_id)
     db.add(folder)
     db.commit()
     db.refresh(folder)
@@ -117,7 +134,7 @@ def update_folder(
 
     fields = payload.model_dump(exclude_unset=True)
     if "name" in fields and fields["name"] is not None:
-        folder.name = fields["name"].strip()
+        folder.name = _clean_name(fields["name"])
     if "parent_id" in fields:
         new_parent = fields["parent_id"]
         if new_parent is not None:

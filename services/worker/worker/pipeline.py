@@ -182,77 +182,76 @@ def run_pipeline(
             stored_path=None,
         )
 
-    # 2. Dedup by content hash.
+    # 2 & 3. Create the image (if new) and link provenance inside a SAVEPOINT, so
+    # a lost race (a concurrent import of the same sha256 or source) unwinds ONLY
+    # this item — NOT the caller's other, already-flushed items in the same
+    # transaction. run_pipeline must never roll back the caller's unit of work
+    # (e.g. a multi-asset email handled across several run_pipeline calls).
     image = session.scalar(select(Image).where(Image.sha256 == digest))
     created_image = False
     written_path: Path | None = None
-
-    if image is None:
-        ext = _derive_ext(original_filename, mime)
-        vendor_name = vendor.name if vendor is not None else None
-        rel_path = build_stored_path(
-            account.label or account.email,
-            source_date,
-            vendor_name,
-            original_filename or "image",
-            ext,
-            media_root=root,
-        )
-        abs_path = root / rel_path
-        abs_path.parent.mkdir(parents=True, exist_ok=True)
-        abs_path.write_bytes(data)
-        written_path = abs_path
-
-        # Stamp the authoritative acquisition date (best-effort; never fatal).
-        try:
-            stamped = stamp_source_date(abs_path, source_date)
-            if not stamped:
-                logger.info(
-                    "pipeline.exif_unsupported path=%s sha=%s", rel_path, digest
-                )
-        except ExiftoolNotFound:
-            logger.warning("pipeline.exif_binary_missing path=%s", rel_path)
-        except Exception:  # noqa: BLE001 - stamping must not abort ingestion
-            logger.exception("pipeline.exif_failed path=%s", rel_path)
-
-        width, height = _dimensions(data)
-        image = Image(
-            sha256=digest,
-            original_filename=original_filename,
-            stored_path=rel_path,
-            ext=ext or None,
-            mime=mime,
-            bytes=len(data),
-            width=width,
-            height=height,
-            source_date=source_date,
-            source_date_origin=source_date_origin,
-        )
-        session.add(image)
-        try:
-            session.flush()
-        except Exception:
-            _safe_unlink(written_path)
-            raise
-        created_image = True
-
-    # 3. Link provenance.
-    src = ImageSource(
-        image_id=image.id,
-        account_id=account.id,
-        source_type=source_type,
-        source_id=source_id,
-        vendor_id=vendor.id if vendor is not None else None,
-        **extra,
-    )
-    session.add(src)
     try:
-        session.flush()
+        with session.begin_nested():  # SAVEPOINT
+            if image is None:
+                ext = _derive_ext(original_filename, mime)
+                vendor_name = vendor.name if vendor is not None else None
+                rel_path = build_stored_path(
+                    account.label or account.email,
+                    source_date,
+                    vendor_name,
+                    original_filename or "image",
+                    ext,
+                    media_root=root,
+                )
+                abs_path = root / rel_path
+                abs_path.parent.mkdir(parents=True, exist_ok=True)
+                abs_path.write_bytes(data)
+                written_path = abs_path
+
+                # Stamp the authoritative acquisition date (best-effort).
+                try:
+                    stamped = stamp_source_date(abs_path, source_date)
+                    if not stamped:
+                        logger.info(
+                            "pipeline.exif_unsupported path=%s sha=%s", rel_path, digest
+                        )
+                except ExiftoolNotFound:
+                    logger.warning("pipeline.exif_binary_missing path=%s", rel_path)
+                except Exception:  # noqa: BLE001 - stamping must not abort ingestion
+                    logger.exception("pipeline.exif_failed path=%s", rel_path)
+
+                width, height = _dimensions(data)
+                image = Image(
+                    sha256=digest,
+                    original_filename=original_filename,
+                    stored_path=rel_path,
+                    ext=ext or None,
+                    mime=mime,
+                    bytes=len(data),
+                    width=width,
+                    height=height,
+                    source_date=source_date,
+                    source_date_origin=source_date_origin,
+                )
+                session.add(image)
+                session.flush()
+                created_image = True
+
+            src = ImageSource(
+                image_id=image.id,
+                account_id=account.id,
+                source_type=source_type,
+                source_id=source_id,
+                vendor_id=vendor.id if vendor is not None else None,
+                **extra,
+            )
+            session.add(src)
+            session.flush()
     except IntegrityError:
-        # Lost a race on uq_image_sources_account_type_sourceid (or, when this
-        # image is new, on sha256/stored_path). Roll back this unit of work and
-        # treat it as an idempotent skip.
-        session.rollback()
+        # Lost a race on uq_image_sources_account_type_sourceid (or, for a new
+        # image, on sha256/stored_path). The SAVEPOINT rolled back just this item
+        # (the caller's other work is untouched); treat it as an idempotent skip
+        # and drop any file we wrote for the now-discarded image.
         if created_image and written_path is not None:
             _safe_unlink(written_path)
         logger.info(
@@ -270,7 +269,7 @@ def run_pipeline(
             stored_path=None,
         )
     except Exception:
-        if created_image and written_path is not None:
+        if written_path is not None:
             _safe_unlink(written_path)
         raise
 

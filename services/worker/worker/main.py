@@ -14,6 +14,9 @@ Phase-2 modules MUST expose these exact callables (see the manifest):
     worker.gmail.discover    -> run_discover_senders(account: str | None) -> None
     worker.gmail.sync        -> run_gmail_sync(account: str | None) -> None
     worker.reconcile         -> run_reconcile(account: str | None) -> None
+    worker.assist            -> run_assist_list() -> None
+    worker.assist            -> run_assist_resolve(task_id: int, file_path: str) -> None
+    worker.backup            -> run_backup() -> None
 """
 
 from __future__ import annotations
@@ -106,11 +109,17 @@ def sync_gmail(
     account: str | None = typer.Option(
         None, "--account", help="Limit to one account email (default: all)."
     ),
+    now: bool = typer.Option(
+        False,
+        "--now",
+        help="Run immediately, ignoring the off-hours window (manual/test runs).",
+    ),
 ) -> None:
-    """Vendor-browser email ingestion (framework stub in this build)."""
+    """Vendor-browser email ingestion. By default only runs in the off-hours
+    window; pass --now to force an on-demand run."""
     from worker.gmail.sync import run_gmail_sync
 
-    run_gmail_sync(account)
+    run_gmail_sync(account, ignore_offhours=now)
 
 
 @app.command("reconcile")
@@ -126,11 +135,50 @@ def reconcile(
 
 
 # --------------------------------------------------------------------------- #
+# assist (human-in-the-loop resolution of un-automatable vendor emails)
+# --------------------------------------------------------------------------- #
+@app.command("assist-list")
+def assist_list() -> None:
+    """List pending human-assist tasks (emails Folio could not auto-ingest)."""
+    from worker.assist import run_assist_list
+
+    run_assist_list()
+
+
+@app.command("assist-resolve")
+def assist_resolve(
+    task_id: int = typer.Option(..., "--id", help="assist_tasks.id to resolve."),
+    file_path: str = typer.Option(
+        ..., "--file", help="Path to the original image to ingest for this task."
+    ),
+) -> None:
+    """Resolve an assist task by ingesting a manually-supplied original image."""
+    from worker.assist import run_assist_resolve
+
+    run_assist_resolve(task_id, file_path)
+
+
+# --------------------------------------------------------------------------- #
+# backup (pg_dump custom-format archive + retention pruning)
+# --------------------------------------------------------------------------- #
+@app.command("backup-db")
+def backup_db() -> None:
+    """Write a timestamped pg_dump archive and prune old ones."""
+    from worker.backup import run_backup
+
+    run_backup()
+
+
+# --------------------------------------------------------------------------- #
 # schedule
 # --------------------------------------------------------------------------- #
 @app.command("schedule")
 def schedule() -> None:
-    """Run the in-container APScheduler loop (sync-drive + discover + reconcile)."""
+    """Run the APScheduler loop (sync-drive + discover + reconcile + sync-gmail).
+
+    The sync-gmail (vendor-browser) job is gated to off-hours and only runs when
+    ``browser_enabled`` is set; all other jobs run on their fixed intervals.
+    """
     from apscheduler.schedulers.blocking import BlockingScheduler
 
     settings = get_settings()
@@ -159,6 +207,28 @@ def schedule() -> None:
 
         _safe("reconcile", lambda: run_reconcile(None))
 
+    def _job_sync_gmail() -> None:
+        # The vendor-browser ingestion is RAM-heavy (Chromium); only run it when
+        # explicitly enabled AND inside the off-hours window. The fixed interval
+        # tick may land outside the window — skip silently when it does. Use the
+        # canonical, overnight-aware gate (in_offhours) so a wrap-around window
+        # (e.g. 22..6) is honored — a naive `start <= hour < end` check never is.
+        from worker.browser.session import in_offhours
+
+        if not settings.browser_enabled:
+            logger.info("scheduler.skip job=sync-gmail reason=browser_disabled")
+            return
+        if not in_offhours():
+            logger.info(
+                "scheduler.skip job=sync-gmail reason=outside_offhours window=%d-%d",
+                settings.browser_offhours_start,
+                settings.browser_offhours_end,
+            )
+            return
+        from worker.gmail.sync import run_gmail_sync
+
+        _safe("sync-gmail", lambda: run_gmail_sync(None))
+
     scheduler.add_job(
         _job_sync_drive,
         "interval",
@@ -183,12 +253,28 @@ def schedule() -> None:
         max_instances=1,
         coalesce=True,
     )
+    # Vendor-browser Gmail ingestion. Registered unconditionally so config can be
+    # flipped at runtime, but the job body self-gates on browser_enabled +
+    # off-hours and max_instances=1 enforces ONE browser job at a time.
+    scheduler.add_job(
+        _job_sync_gmail,
+        "interval",
+        minutes=settings.gmail_sync_interval_minutes,
+        id="sync-gmail",
+        max_instances=1,
+        coalesce=True,
+    )
 
     logger.info(
-        "scheduler.start sync_drive=%smin discover=%smin reconcile=%smin",
+        "scheduler.start sync_drive=%smin discover=%smin reconcile=%smin "
+        "sync_gmail=%smin browser_enabled=%s offhours=%d-%d",
         settings.sync_drive_interval_minutes,
         settings.discover_senders_interval_minutes,
         settings.reconcile_interval_minutes,
+        settings.gmail_sync_interval_minutes,
+        settings.browser_enabled,
+        settings.browser_offhours_start,
+        settings.browser_offhours_end,
     )
     try:
         scheduler.start()

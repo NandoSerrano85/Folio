@@ -17,6 +17,28 @@ invent flags.
 
 ---
 
+## 0. Quick start (scripts)
+
+In a hurry, or already familiar with the box? The repo ships helper scripts that
+collapse the manual steps below. The detailed sections (Google Cloud setup, NAS
+storage, networking, backups, troubleshooting) are still worth reading once.
+
+```bash
+cd $FOLIO
+scripts/bootstrap.sh                 # generate secrets, scaffold .env, make dirs
+# ... drop secrets/google_client_secret.json in place (section 3) ...
+docker compose up -d --build         # build + start db, worker, portal
+docker compose run --rm worker init-db
+scripts/oauth.sh                     # OAuth the 3 Drive + 3 Gmail accounts
+scripts/verify.sh                    # health-check the deployment
+```
+
+`make bootstrap`, `make oauth`, `make verify` are equivalents. The end-to-end
+copy-paste walkthrough lives in **[docs/QUICKSTART.md](docs/QUICKSTART.md)**.
+The numbered sections below remain the authoritative reference.
+
+---
+
 ## 1. Prerequisites & hardware note
 
 | Item | Requirement |
@@ -501,6 +523,92 @@ needs reverting.
 
 ---
 
+## 15. New commands: assist tasks, vendor-browser sync, DB backup
+
+These are the operations added with the email/vendor-browser acquisition phase.
+All are exposed through the worker CLI and the `Makefile`.
+
+### Vendor-browser Gmail ingestion (`sync-gmail`)
+
+Pulls images that arrive as vendor **emails** by driving a headless Chromium
+(Playwright). It is RAM-heavy, so on this 8 GB box it is deliberately
+constrained: it runs **one job at a time** (`VENDOR_BROWSER_MAX_JOBS=1`, keep it
+at 1) and the scheduler only fires it when `BROWSER_ENABLED=true` **and** the
+local hour is inside the off-hours window
+`[BROWSER_OFFHOURS_START, BROWSER_OFFHOURS_END)` in your `TIMEZONE` (defaults
+`1`–`6`). To trigger a run manually (it ignores the window when you invoke it
+directly):
+
+```bash
+docker compose run --rm worker sync-gmail          # or: make sync-gmail
+docker compose run --rm worker sync-gmail --account gmail1@example.com
+```
+
+Set `BROWSER_ENABLED=false` in `.env` to disable vendor-browser ingestion
+entirely. The worker `mem_limit` stays at 2.5g and compose sets `shm_size: 512mb`
+for Chromium; do not raise these on this box.
+
+### Human-assist tasks (`assist-list` / `assist-resolve`)
+
+When an email can't be auto-ingested (no adapter for the vendor, a CAPTCHA, a
+failed login), Folio records a **pending assist task** instead of dropping the
+image. List them, then resolve one by supplying the original image yourself:
+
+```bash
+docker compose run --rm worker assist-list                  # or: make assist-list
+# Download the original from the vendor email by hand, then:
+docker compose run --rm worker assist-resolve --id 42 --file /data/tmp/original.jpg
+```
+
+`assist-resolve` ingests the file through the normal pipeline (dedup by sha256,
+EXIF date-stamping) and marks the task `resolved`. The `--file` path must be
+readable **inside** the worker container — drop the file on a mounted volume
+(e.g. a bind-mounted share, or `docker compose cp` it in) before running.
+
+### Database backup (`backup-db` / the `backup` service)
+
+A timestamped, custom-format `pg_dump` archive written to `BACKUP_DIR`
+(`/data/backups`, the `backups` named volume), with archives older than
+`BACKUP_RETENTION_DAYS` (default 14) pruned after each successful dump. It never
+logs credentials.
+
+```bash
+docker compose run --rm backup                     # or: make backup
+# equivalently, via the worker CLI:
+docker compose run --rm worker backup-db
+```
+
+The `backup` service is behind the `backup` compose profile (mem_limit 512m), so
+`docker compose up` never starts it — invoke it explicitly, or schedule it with
+QTS Task Scheduler. (This is in addition to the host-level `pg_dump` script in
+section 12; either approach works — this one keeps the dump on the `backups`
+volume.)
+
+### `SESSION_HTTPS_ONLY` and `ACCESS_TOKEN_HASH` notes
+
+- **`SESSION_HTTPS_ONLY`** (default `false`): adds the `Secure` flag to the
+  portal session cookie. Leave it `false` for plain-HTTP LAN access
+  (`http://NAS-IP:8080`) — with `Secure` set, the browser won't send the cookie
+  over HTTP and you can't stay logged in. Set it `true` **only** when the portal
+  is reached over HTTPS (reverse proxy / TLS terminator / HTTPS VPN), then
+  restart the portal.
+
+- **`ACCESS_TOKEN_HASH`** (optional): an alternative to username+password login.
+  It stores the **argon2id hash** of a portal access token — the plaintext token
+  is never written to disk. `scripts/bootstrap.sh` mints one for you and prints
+  the one-time token; to rotate it later:
+
+  ```bash
+  python services/portal/scripts/make_token.py
+  ```
+
+  Paste the printed `ACCESS_TOKEN_HASH=` line into `.env` (replacing any old
+  value), keep the printed `TOKEN:` secret, and restart the portal. Then paste
+  that token into the portal to log in. Leaving `ACCESS_TOKEN_HASH` blank simply
+  disables token login; `ADMIN_USERNAME`/`ADMIN_PASSWORD` still works.
+
+---
+
 ### Quick command reference
 
 | Action | Command |
@@ -514,7 +622,14 @@ needs reverting.
 | Auth a Gmail acct | `docker compose run --rm worker auth-gmail --account <email>` |
 | Full Drive sync | `docker compose run --rm worker sync-drive --account <email> --full` |
 | Discover senders | `docker compose run --rm worker discover-senders` / `make discover` |
+| Vendor-browser Gmail sync | `docker compose run --rm worker sync-gmail` / `make sync-gmail` |
+| List assist tasks | `docker compose run --rm worker assist-list` / `make assist-list` |
+| Resolve an assist task | `docker compose run --rm worker assist-resolve --id <id> --file <path>` |
+| DB backup | `docker compose run --rm backup` / `make backup` |
 | Reconcile | `docker compose run --rm worker reconcile` / `make reconcile` |
+| Bootstrap (.env + secrets) | `scripts/bootstrap.sh` / `make bootstrap` |
+| OAuth all accounts | `scripts/oauth.sh` / `make oauth` |
+| Verify deployment | `scripts/verify.sh` / `make verify` |
 | psql shell | `docker compose exec db psql -U folio -d folio` / `make psql` |
 
 See **[docs/OPERATIONS.md](docs/OPERATIONS.md)** for day-2 operations: incremental
