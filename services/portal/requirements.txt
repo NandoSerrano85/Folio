@@ -1,0 +1,13 @@
+# Portal runtime dependencies.
+#
+# folio_core (the shared spine) is installed separately in the Dockerfile from
+# the copied ./packages/folio_core source, which also pulls in SQLAlchemy,
+# psycopg, pydantic, pydantic-settings, alembic, cryptography, python-dateutil.
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9
+argon2-cffi>=23.1
+itsdangerous>=2.1
+Pillow>=10.2

@@ -1,0 +1,23 @@
+# Worker runtime dependencies.
+#
+# folio_core (the shared spine) is installed separately in the Dockerfile from
+# the copied ./packages/folio_core source, which also pulls in SQLAlchemy,
+# psycopg, pydantic, pydantic-settings, alembic, cryptography, python-dateutil.
+
+# Google APIs (installed-app OAuth flow, READ-ONLY scopes).
+google-api-python-client>=2.120
+google-auth>=2.28
+google-auth-oauthlib>=1.2
+google-auth-httplib2>=0.2
+
+# Scheduling, retry, CLI.
+apscheduler>=3.10,<4
+tenacity>=8.2
+typer>=0.12
+
+# Image handling + perceptual hashing (future similarity).
+Pillow>=10.2
+imagehash>=4.3
+
+# argon2id hashing for seeding the portal admin user during `worker init-db`.
+argon2-cffi>=23.1

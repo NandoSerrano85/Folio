@@ -1,0 +1,77 @@
+# Folio — docker compose stack.
+#
+# Three services:
+#   db      Postgres 16 (named volume, healthcheck)
+#   worker  ingestion CLI + APScheduler loop (rw media/thumbnails/tokens)
+#   portal  FastAPI JSON API + static UI (ro media/tokens, rw thumbnails)
+#
+# Memory caps are sized for the QNAP TBS-464 (8 GB NON-EXPANDABLE):
+#   db 1.5g + worker 2.5g + portal 1g = 5g, leaving headroom for QTS.
+#
+# One-shot DB init (migrate + seed admin):
+#   docker compose run --rm worker init-db
+# OAuth a Drive account (interactive):
+#   docker compose run --rm worker auth-drive --account you@example.com
+#
+# Build context is the repo root for every build so each image can COPY both
+# ./packages/folio_core and its own ./services/<name> tree.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-folio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-folio}
+      POSTGRES_DB: ${POSTGRES_DB:-folio}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-folio} -d ${POSTGRES_DB:-folio}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 1.5g
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    # Default command: run the scheduler loop. The entrypoint applies migrations
+    # first. Override with e.g. `docker compose run --rm worker init-db`.
+    command: ["schedule"]
+    volumes:
+      - media:/data/media            # rw: writes original images
+      - thumbnails:/data/thumbnails  # rw: may pre-generate thumbnails
+      - tokens:/data/tokens          # rw: stores encrypted OAuth tokens
+      - ./secrets:/data/secrets:ro   # ro: Google client secrets JSON
+    mem_limit: 2.5g
+
+  portal:
+    build:
+      context: .
+      dockerfile: services/portal/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - media:/data/media:ro         # ro: serves original bytes
+      - thumbnails:/data/thumbnails  # rw: thumbnail cache
+      - tokens:/data/tokens:ro       # ro: never mutates tokens
+    mem_limit: 1g
+
+volumes:
+  pgdata:
+  media:        # single shared library volume (worker rw, portal ro)
+  thumbnails:
+  tokens:

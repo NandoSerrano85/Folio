@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#f7f5f2}
+input,button,select,textarea{font-family:inherit}
+::selection{background:rgba(0,0,0,.10)}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:rgba(120,110,95,.30);border-radius:9px;border:3px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+@keyframes folioIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes lbIn{from{opacity:0}to{opacity:1}}
+</style>
+</helmet>
+<div ref="{{ setRoot }}" style="min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Hanken Grotesk',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased">
+
+<sc-if value="{{ showLogin }}" hint-placeholder-val="{{ true }}">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div style="display:flex;width:100%;max-width:940px;min-height:558px;background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)">
+      <div style="position:relative;flex:1.05 1 0;min-width:0;background:#171511;color:#f2ede4;overflow:hidden">
+        <img src="https://picsum.photos/seed/folio-cover/900/1200" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.4" />
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(23,21,17,.5),rgba(23,21,17,.84))"></div>
+        <div style="position:relative;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:36px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:30px;height:30px;border-radius:9px;background:#f2ede4;color:#171511;display:flex;align-items:center;justify-content:center;font-family:'Newsreader',serif;font-size:18px;font-weight:600">F</div>
+            <span style="font-family:'Newsreader',serif;font-size:21px;letter-spacing:.01em">Folio</span>
+          </div>
+          <div>
+            <div style="font-family:'Newsreader',serif;font-weight:500;font-size:35px;line-height:1.16;letter-spacing:-.015em;max-width:15ch;text-wrap:balance">Every image your team was ever sent, in one quiet place.</div>
+            <p style="margin:18px 0 0;max-width:33ch;color:#cdc5b8;font-size:13.5px;line-height:1.6">Folio gathers pictures from your mailboxes and drives, keeps each one's true source date, and makes the whole archive searchable.</p>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:#9b9384">Self-hosted · 6 sources · running on NAS</div>
+        </div>
+      </div>
+      <div style="flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;padding:40px">
+        <div style="width:100%;max-width:336px">
+          <h1 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:28px;letter-spacing:-.01em">Sign in</h1>
+          <p style="margin:8px 0 26px;color:var(--ink-soft);font-size:13.5px">Enter your access token to open the library.</p>
+          <label style="display:block;font-size:12px;font-weight:600;margin:0 0 6px;color:var(--ink-soft)">Access token</label>
+          <div style="position:relative">
+            <input value="{{ loginToken }}" onChange="{{ onLoginToken }}" onKeyDown="{{ onLoginKey }}" type="{{ tokenInputType }}" autocomplete="off" spellcheck="false" placeholder="folio_sk_live_…" style="width:100%;height:44px;padding:0 62px 0 13px;background:var(--field);border:1px solid var(--line-strong);border-radius:10px;outline:none;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:13px" />
+            <button onClick="{{ onToggleTokenVisible }}" style="position:absolute;right:7px;top:50%;transform:translateY(-50%);height:30px;padding:0 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;color:var(--ink-soft);font-size:11.5px;font-weight:600;cursor:pointer">{{ tokenToggleLabel }}</button>
+          </div>
+          <p style="margin:9px 2px 0;font-size:12px;color:var(--muted);line-height:1.5">Paste the token issued by your Folio admin. It's stored on this device only.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 22px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);cursor:pointer">
+              <input type="checkbox" defaultChecked style="width:15px;height:15px;accent-color:var(--accent)" /> Remember this device
+            </label>
+            <button onClick="{{ onTokenHelp }}" style="background:none;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px">Where do I find this?</button>
+          </div>
+          <button onClick="{{ onSignIn }}" style="width:100%;height:44px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:11px;font-weight:600;font-size:14.5px;cursor:pointer" style-hover="filter:brightness(.94)">Unlock library</button>
+          <p style="margin:20px 0 0;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Protected area · token auth</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showApp }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;height:60px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--line)">
+    <div style="display:flex;align-items:center;gap:18px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;border-radius:8px;background:var(--accent);color:var(--accent-contrast);display:flex;align-items:center;justify-content:center;font-family:'Newsreader',serif;font-size:17px;font-weight:600">F</div>
+        <span style="font-family:'Newsreader',serif;font-size:19px;letter-spacing:.01em">Folio</span>
+      </div>
+      <nav style="display:flex;align-items:center;gap:2px">
+        <button onClick="{{ setTabLibrary }}" style="position:relative;background:none;border:none;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink);padding:9px 10px;border-radius:8px" style-hover="background:var(--surface-2)">Library<sc-if value="{{ libActive }}"><span style="position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px"></span></sc-if></button>
+        <button onClick="{{ setTabSenders }}" style="position:relative;background:none;border:none;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink);padding:9px 10px;border-radius:8px" style-hover="background:var(--surface-2)">Senders<sc-if value="{{ senActive }}"><span style="position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px"></span></sc-if></button>
+      </nav>
+    </div>
+    <div style="flex:1 1 0;display:flex;justify-content:center;min-width:0">
+      <div style="position:relative;width:100%;max-width:520px;display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;background:var(--field);border:1px solid var(--line);border-radius:10px">
+        <span style="display:flex;color:var(--muted);flex-shrink:0"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.3"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg></span>
+        <input value="{{ searchValue }}" onChange="{{ onSearch }}" placeholder="Search filenames, vendors, senders…" style="flex:1;min-width:0;border:none;background:none;outline:none;font-size:13.5px;color:var(--ink)" />
+        <sc-if value="{{ hasSearch }}"><button onClick="{{ onClearSearch }}" style="display:flex;background:none;border:none;cursor:pointer;color:var(--muted);padding:2px"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg></button></sc-if>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div style="display:flex;align-items:center;padding:3px;gap:2px;background:var(--surface-2);border-radius:9px">
+        <button onClick="{{ onLight }}" style="{{ lightBtnStyle }}">Light</button>
+        <button onClick="{{ onDark }}" style="{{ darkBtnStyle }}">Dark</button>
+      </div>
+      <div style="width:1px;height:24px;background:var(--line)"></div>
+      <div style="position:relative">
+        <button onClick="{{ onToggleUserMenu }}" style="display:flex;align-items:center;gap:9px;background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:9px" style-hover="background:var(--surface-2)">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:var(--ink)">{{ userInitial }}</div>
+          <span style="font-size:13px;font-weight:500">{{ userName }}</span>
+          <span style="color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+        </button>
+        <sc-if value="{{ userMenuOpen }}">
+          <div style="position:absolute;right:0;top:48px;width:206px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;z-index:50;animation:folioIn .12s ease">
+            <div style="padding:8px 10px 6px"><div style="font-size:13px;font-weight:600">{{ userName }}</div><div style="font-size:11.5px;color:var(--muted)">Admin · all sources</div></div>
+            <div style="height:1px;background:var(--line);margin:4px 0"></div>
+            <button onClick="{{ onGotoSenders }}" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-size:13px;color:var(--ink);padding:8px 10px;border-radius:8px" style-hover="background:var(--surface-2)">Senders &amp; sources</button>
+            <button onClick="{{ onLogout }}" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-size:13px;color:var(--ink);padding:8px 10px;border-radius:8px" style-hover="background:var(--surface-2)">Log out</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </header>
+
+  <sc-if value="{{ isLibrary }}">
+    <div style="display:flex;align-items:flex-start">
+      <aside style="position:sticky;top:60px;align-self:flex-start;width:256px;flex-shrink:0;height:calc(100vh - 60px);overflow-y:auto;border-right:1px solid var(--line);padding:20px 14px 40px;background:var(--surface)">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 8px 9px">Collections</div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ folders }}" as="f" hint-placeholder-count="7">
+            <button onClick="{{ f.onClick }}" style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:none;border:none;cursor:pointer;text-align:left;padding:8px 10px;border-radius:9px;color:var(--ink);font-size:13.5px" style-hover="background:var(--surface-2)">
+              <sc-if value="{{ f.active }}"><span style="position:absolute;inset:0;background:var(--surface-2);border-radius:9px"></span><span style="position:absolute;left:0;top:7px;bottom:7px;width:3px;background:var(--accent);border-radius:0 3px 3px 0"></span></sc-if>
+              <span style="position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</span>
+              <span style="position:relative;z-index:1;font-size:11.5px;color:var(--muted);font-family:'IBM Plex Mono',monospace">{{ f.count }}</span>
+            </button>
+          </sc-for>
+        </div>
+
+        <div style="height:1px;background:var(--line);margin:18px 8px"></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 8px 10px">Source account</div>
+        <div style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:0 8px 5px;letter-spacing:.02em">Gmail</div>
+        <div style="display:flex;flex-direction:column;gap:1px;margin-bottom:11px">
+          <sc-for list="{{ gmailAccounts }}" as="a" hint-placeholder-count="3">
+            <div onClick="{{ a.onToggle }}" style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px" style-hover="background:var(--surface-2)">
+              <span style="position:relative;width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)"><sc-if value="{{ a.checked }}"><span style="position:absolute;inset:-1.5px;border-radius:5px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-contrast)"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if></span>
+              <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">{{ a.name }}</span>
+              <span style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace">{{ a.count }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:0 8px 5px;letter-spacing:.02em">Google Drive</div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ driveAccounts }}" as="a" hint-placeholder-count="3">
+            <div onClick="{{ a.onToggle }}" style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px" style-hover="background:var(--surface-2)">
+              <span style="position:relative;width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)"><sc-if value="{{ a.checked }}"><span style="position:absolute;inset:-1.5px;border-radius:5px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-contrast)"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if></span>
+              <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">{{ a.name }}</span>
+              <span style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace">{{ a.count }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="height:1px;background:var(--line);margin:18px 8px"></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 8px 9px">Vendor</div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ vendors }}" as="v" hint-placeholder-count="7">
+            <div onClick="{{ v.onToggle }}" style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px" style-hover="background:var(--surface-2)">
+              <span style="position:relative;width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)"><sc-if value="{{ v.checked }}"><span style="position:absolute;inset:-1.5px;border-radius:5px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-contrast)"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if></span>
+              <span style="{{ v.dotStyle }}"></span>
+              <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">{{ v.name }}</span>
+              <span style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace">{{ v.count }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="height:1px;background:var(--line);margin:18px 8px"></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 8px 9px">Date range</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:0 8px 12px">
+          <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4">
+            <button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:8px;margin:0 8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10.5px;color:var(--muted);margin-bottom:4px">From</div>
+            <input type="date" value="{{ dateFrom }}" onChange="{{ onDateFrom }}" style="width:100%;height:34px;padding:0 8px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-size:12px;outline:none" />
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10.5px;color:var(--muted);margin-bottom:4px">To</div>
+            <input type="date" value="{{ dateTo }}" onChange="{{ onDateTo }}" style="width:100%;height:34px;padding:0 8px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-size:12px;outline:none" />
+          </div>
+        </div>
+        <sc-if value="{{ filtersActive }}">
+          <button onClick="{{ onResetFilters }}" style="margin:16px 8px 0;background:none;border:none;color:var(--ink-soft);font-size:12.5px;cursor:pointer;text-decoration:underline;text-underline-offset:2px">Reset all filters</button>
+        </sc-if>
+      </aside>
+
+      <main style="flex:1 1 0;min-width:0;padding:24px 28px 64px">
+        <h1 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:27px;letter-spacing:-.01em">{{ collName }}</h1>
+        <p style="margin:7px 0 0;color:var(--ink-soft);font-size:13.5px">{{ collDesc }}</p>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">
+          <span>{{ collCount }} images</span><sc-if value="{{ filtersActive }}"><span>· filtered</span></sc-if>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:22px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div onClick="{{ onSelectAllPage }}" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--ink-soft)">
+              <span style="position:relative;width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)"><sc-if value="{{ allPageSelected }}"><span style="position:absolute;inset:-1.5px;border-radius:5px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-contrast)"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if></span>
+              <span>Select all on page</span>
+            </div>
+            <sc-if value="{{ hasSelection }}">
+              <div style="display:flex;align-items:center;gap:10px;padding-left:13px;border-left:1px solid var(--line)">
+                <span style="font-size:13px;font-weight:600">{{ selectedCount }} selected</span>
+                <button onClick="{{ onDownloadSelected }}" style="display:flex;align-items:center;gap:7px;height:32px;padding:0 12px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2.5" x2="8" y2="10.5"></line><polyline points="4.5,7 8,10.6 11.5,7"></polyline><line x1="3" y1="13.2" x2="13" y2="13.2"></line></svg>Download selected (zip)</button>
+                <button onClick="{{ onClearSelection }}" style="background:none;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px">Clear</button>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:12.5px;color:var(--muted)">Sort</span>
+              <div style="position:relative">
+                <select value="{{ sortValue }}" onChange="{{ onSort }}" style="appearance:none;-webkit-appearance:none;height:34px;padding:0 30px 0 12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13px;cursor:pointer;outline:none">
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="name">Name A–Z</option>
+                  <option value="vendor">Vendor</option>
+                  <option value="account">Source account</option>
+                </select>
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:12.5px;color:var(--muted)">Show</span>
+              <div style="position:relative">
+                <select value="{{ pageSizeValue }}" onChange="{{ onPageSize }}" style="appearance:none;-webkit-appearance:none;height:34px;padding:0 30px 0 12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13px;cursor:pointer;outline:none">
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                </select>
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ hasResults }}">
+          <div style="{{ gridStyle }}">
+            <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="9">
+              <div onClick="{{ t.onOpen }}" onMouseEnter="{{ t.onEnter }}" onMouseLeave="{{ t.onLeave }}" style="position:relative;aspect-ratio:4/3;border-radius:13px;overflow:hidden;cursor:zoom-in;box-shadow:var(--shadow)">
+                <div style="{{ t.bgStyle }}"></div>
+                <img src="{{ t.thumb }}" alt="{{ t.filename }}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" />
+                <div style="position:absolute;left:0;right:0;bottom:0;padding:28px 12px 11px;background:linear-gradient(180deg,transparent,rgba(18,14,10,.7));display:flex;align-items:flex-end;justify-content:space-between;gap:8px;pointer-events:none">
+                  <div style="display:flex;align-items:center;gap:7px;min-width:0">
+                    <span style="{{ t.vendorDotStyle }}"></span>
+                    <span style="color:#fff;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.vendorName }}</span>
+                  </div>
+                  <span style="color:#f3ede2;font-family:'Newsreader',serif;font-style:italic;font-size:12.5px;white-space:nowrap;flex-shrink:0">{{ t.dateLabel }}</span>
+                </div>
+                <sc-if value="{{ t.selected }}"><span style="position:absolute;inset:0;border:2.5px solid var(--accent);border-radius:13px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);pointer-events:none"></span></sc-if>
+                <div style="position:absolute;left:0;right:0;top:0;padding:9px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                  <div>
+                    <sc-if value="{{ t.showCheckbox }}">
+                      <button onClick="{{ t.onToggle }}" style="position:relative;display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(255,255,255,.92);cursor:pointer;padding:0;overflow:hidden;background:rgba(18,14,10,.34)">
+                        <sc-if value="{{ t.selected }}"><span style="position:absolute;inset:0;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-contrast)"><svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if>
+                      </button>
+                    </sc-if>
+                  </div>
+                  <div>
+                    <sc-if value="{{ t.showTop }}">
+                      <button onClick="{{ t.onVendor }}" style="display:flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:7px;border:none;background:rgba(255,255,255,.94);color:#1b1916;font-size:11.5px;font-weight:600;cursor:pointer">Open at vendor <span style="font-size:12px">↗</span></button>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noResults }}">
+          <div style="text-align:center;padding:78px 20px">
+            <div style="font-family:'Newsreader',serif;font-style:italic;font-size:22px;color:var(--ink);margin-bottom:8px">Nothing matches these filters.</div>
+            <p style="margin:0 0 18px;font-size:13.5px;color:var(--ink-soft)">Try clearing a filter or widening the date range.</p>
+            <button onClick="{{ onResetFilters }}" style="height:36px;padding:0 16px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:9px;font-weight:600;cursor:pointer">Reset filters</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showPagination }}">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:13px;margin-top:36px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <button onClick="{{ onPrev }}" style="{{ prevStyle }}">‹ Prev</button>
+              <sc-for list="{{ pages }}" as="p" hint-placeholder-count="3">
+                <sc-if value="{{ p.isGap }}"><span style="padding:0 4px;color:var(--muted)">…</span></sc-if>
+                <sc-if value="{{ p.isPage }}"><button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.n }}</button></sc-if>
+              </sc-for>
+              <button onClick="{{ onNext }}" style="{{ nextStyle }}">Next ›</button>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em">{{ rangeLabel }}</div>
+          </div>
+        </sc-if>
+      </main>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSenders }}">
+    <div style="max-width:980px;margin:0 auto;padding:32px 26px 72px">
+      <h1 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:28px;letter-spacing:-.01em">Senders &amp; sources</h1>
+      <p style="margin:11px 0 0;max-width:64ch;color:var(--ink-soft);font-size:14px;line-height:1.6">These control which sources Folio pulls images from — the mailboxes it scans for attachments, and the Google Drives it watches for new files.</p>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:30px 0 4px">
+        <h2 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:19px;letter-spacing:-.01em">Email senders</h2>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">{{ sTotal }} discovered · {{ sIncluded }} included · {{ sOff }} off</span>
+      </div>
+      <p style="margin:6px 0 16px;color:var(--muted);font-size:12.5px;line-height:1.5">Turn a sender off to stop importing its attachments, or add an address or a whole domain to include.</p>
+      <div style="display:flex;gap:10px;margin-bottom:22px">
+        <input value="{{ newSender }}" onChange="{{ onNewSender }}" onKeyDown="{{ onAddKey }}" placeholder="name@vendor.com   or   @vendor.com" style="flex:1;max-width:420px;height:40px;padding:0 13px;background:var(--field);border:1px solid var(--line-strong);border-radius:10px;outline:none;font-size:13.5px;color:var(--ink)" />
+        <button onClick="{{ onAddSender }}" style="height:40px;padding:0 18px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:10px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)">Add source</button>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)">
+        <div style="display:grid;grid-template-columns:1fr 116px 198px 92px;align-items:center;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">
+          <span>Sender</span><span style="text-align:right">Image emails</span><span style="padding-left:18px">Mapped vendor</span><span style="text-align:right">Include</span>
+        </div>
+        <sc-for list="{{ senders }}" as="se" hint-placeholder-count="9">
+          <div style="{{ se.rowStyle }}">
+            <div style="display:grid;grid-template-columns:1fr 116px 198px 92px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line)">
+              <div style="min-width:0">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ se.address }}</div>
+                <sc-if value="{{ se.manual }}"><span style="display:inline-block;margin-top:5px;font-size:9.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:5px">Added manually</span></sc-if>
+              </div>
+              <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft)">{{ se.count }}</div>
+              <div style="padding-left:18px">
+                <div style="position:relative">
+                  <select value="{{ se.vendorId }}" onChange="{{ se.onVendor }}" style="appearance:none;-webkit-appearance:none;width:100%;height:34px;padding:0 28px 0 11px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-size:12.5px;cursor:pointer;outline:none">
+                    <option value="">— Unmapped —</option>
+                    <sc-for list="{{ vendorOptions }}" as="vo"><option value="{{ vo.id }}">{{ vo.name }}</option></sc-for>
+                  </select>
+                  <span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end">
+                <button onClick="{{ se.onToggle }}" style="{{ se.trackStyle }}"><span style="{{ se.knobStyle }}"></span></button>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin:18px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.6">Changes apply on the next sync (hourly). Turning a sender off stops importing new attachments; images already in the library stay.</p>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:38px 0 4px">
+        <h2 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:19px;letter-spacing:-.01em">Google Drive sources</h2>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">{{ dTotal }} connected · {{ dIncluded }} on</span>
+      </div>
+      <p style="margin:6px 0 16px;color:var(--muted);font-size:12.5px;line-height:1.5">Shared drives and folders Folio scans for new image files. Connect another Google account, or add a specific folder to watch.</p>
+      <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
+        <input value="{{ newDrive }}" onChange="{{ onNewDrive }}" onKeyDown="{{ onAddDriveKey }}" placeholder="Shared drive or folder path (e.g. Vendors/Lookbooks)" style="flex:1;max-width:420px;height:40px;padding:0 13px;background:var(--field);border:1px solid var(--line-strong);border-radius:10px;outline:none;font-size:13.5px;color:var(--ink)" />
+        <button onClick="{{ onAddDrive }}" style="height:40px;padding:0 18px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:10px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)">Add drive</button>
+        <button onClick="{{ onConnectDrive }}" style="height:40px;padding:0 14px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:10px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px" style-hover="background:var(--surface-2)">Connect a Google account <span style="font-size:13px">↗</span></button>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)">
+        <div style="display:grid;grid-template-columns:1fr 174px 88px 84px;align-items:center;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">
+          <span>Drive / folder</span><span>Account</span><span style="text-align:right">Images</span><span style="text-align:right">Include</span>
+        </div>
+        <sc-for list="{{ driveRows }}" as="d" hint-placeholder-count="3">
+          <div style="{{ d.rowStyle }}">
+            <div style="display:grid;grid-template-columns:1fr 174px 88px 84px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line)">
+              <div style="min-width:0;padding-right:10px">
+                <div style="font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:5px">
+                  <span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:5px">{{ d.kind }}</span>
+                  <sc-if value="{{ d.manual }}"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:5px">Added manually</span></sc-if>
+                </div>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:10px">{{ d.account }}</div>
+              <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft)">{{ d.count }}</div>
+              <div style="display:flex;justify-content:flex-end">
+                <button onClick="{{ d.onToggle }}" style="{{ d.trackStyle }}"><span style="{{ d.knobStyle }}"></span></button>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin:18px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.6">Connecting a Google account opens Google's authorization. Folio only reads image files in the drives and folders you add here.</p>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ lightboxOpen }}">
+    <div onClick="{{ lb.onBackdrop }}" style="position:fixed;inset:0;z-index:60;background:var(--overlay);display:flex;align-items:center;justify-content:center;padding:30px;animation:lbIn .15s ease">
+      <div style="position:relative;display:flex;width:100%;max-width:1180px;height:100%;max-height:760px;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 30px 80px -20px rgba(0,0,0,.6)">
+        <div style="position:relative;flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <div style="{{ lb.bgStyle }}"></div>
+          <div style="{{ lb.imgStyle }}"></div>
+          <sc-if value="{{ lb.hasPrev }}"><button onClick="{{ lb.onPrev }}" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.92);color:#1b1916;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3)"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,3 5,8 10,13"></polyline></svg></button></sc-if>
+          <sc-if value="{{ lb.hasNext }}"><button onClick="{{ lb.onNext }}" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.92);color:#1b1916;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3)"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"></polyline></svg></button></sc-if>
+          <div style="position:absolute;left:14px;bottom:12px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#fff;background:rgba(18,14,10,.55);padding:4px 9px;border-radius:6px">{{ lb.posLabel }}</div>
+        </div>
+        <div style="width:344px;flex-shrink:0;border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column">
+          <div style="flex:1;overflow-y:auto;padding:22px 22px 8px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink);word-break:break-all">{{ lb.filename }}</div>
+            <div style="margin-top:18px">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">True source date</div>
+              <div style="font-family:'Newsreader',serif;font-style:italic;font-size:23px;color:var(--ink);line-height:1.12">{{ lb.trueLong }}</div>
+              <div style="margin-top:6px;font-size:12px;color:var(--muted)">Added to library · {{ lb.nasLong }}</div>
+            </div>
+            <div style="height:1px;background:var(--line);margin:18px 0"></div>
+            <div style="margin-bottom:15px">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">Source account</div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:13.5px;color:var(--ink)">{{ lb.accountName }}</span><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:5px">{{ lb.accountType }}</span></div>
+            </div>
+            <sc-if value="{{ lb.isEmail }}">
+              <div style="margin-bottom:15px">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">From</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink);word-break:break-all">{{ lb.sender }}</div>
+                <div style="font-size:13px;color:var(--ink-soft);margin-top:6px;line-height:1.5">“{{ lb.subject }}”</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ lb.isDrive }}">
+              <div style="margin-bottom:15px">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">Drive path</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink);word-break:break-all">{{ lb.drivePath }}</div>
+              </div>
+            </sc-if>
+            <div style="margin-bottom:15px">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">Vendor</div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="{{ lb.vendorDotStyle }}"></span><span style="font-size:13.5px;color:var(--ink)">{{ lb.vendorName }}</span></div>
+            </div>
+            <div style="margin-bottom:6px">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:7px">In collections</div>
+              <sc-if value="{{ lb.hasFolders }}">
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <sc-for list="{{ lb.folderChips }}" as="c"><span style="font-size:12px;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);padding:3px 9px;border-radius:999px">{{ c }}</span></sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ lb.noFolders }}"><span style="font-size:12.5px;color:var(--muted)">Not in any collection yet.</span></sc-if>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:8px;position:relative">
+            <div style="display:flex;gap:8px">
+              <button onClick="{{ lb.onDownload }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:9px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2.5" x2="8" y2="10.5"></line><polyline points="4.5,7 8,10.6 11.5,7"></polyline><line x1="3" y1="13.2" x2="13" y2="13.2"></line></svg>Download</button>
+              <button onClick="{{ lb.onVendor }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;height:38px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-weight:500;cursor:pointer" style-hover="background:var(--surface-2)">Open at vendor <span style="font-size:13px">↗</span></button>
+            </div>
+            <button onClick="{{ lb.onToggleAdd }}" style="height:38px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-weight:500;cursor:pointer" style-hover="background:var(--surface-2)">+ Add to folder</button>
+            <sc-if value="{{ lb.addOpen }}">
+              <div style="position:absolute;left:14px;right:14px;bottom:60px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;max-height:236px;overflow:auto;z-index:5;animation:folioIn .12s ease">
+                <sc-for list="{{ lb.folderToggles }}" as="ft">
+                  <div onClick="{{ ft.onToggle }}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--ink)" style-hover="background:var(--surface-2)">
+                    <span>{{ ft.name }}</span>
+                    <sc-if value="{{ ft.inFolder }}"><span style="color:var(--accent);display:flex"><svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <button onClick="{{ lb.onClose }}" style="position:absolute;right:14px;top:14px;width:34px;height:34px;border-radius:50%;border:none;background:var(--surface);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:10" style-hover="background:var(--surface-2)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg></button>
+      </div>
+    </div>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--bg);font-size:13px;font-weight:500;padding:11px 18px;border-radius:11px;box-shadow:0 10px 30px -8px rgba(0,0,0,.5);max-width:82vw;text-align:center;animation:toastIn .2s ease;font-family:'IBM Plex Mono',monospace;letter-spacing:.01em">{{ toast }}</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Graphite&quot;,&quot;options&quot;:[&quot;Graphite&quot;,&quot;Blue&quot;,&quot;Emerald&quot;,&quot;Violet&quot;,&quot;Amber&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;startTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Light&quot;,&quot;options&quot;:[&quot;Light&quot;,&quot;Dark&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Comfortable&quot;,&quot;options&quot;:[&quot;Comfortable&quot;,&quot;Compact&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.MON_S=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    this.MON_L=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    this.accentMap={
+      Graphite:{light:'#1b1916',dark:'#f2ede4',conLight:'#ffffff',conDark:'#1b1916'},
+      Blue:{light:'#2f6fed',dark:'#6f9bff',conLight:'#ffffff',conDark:'#0e1320'},
+      Emerald:{light:'#0f9d77',dark:'#34c79b',conLight:'#ffffff',conDark:'#06120e'},
+      Violet:{light:'#7c5cff',dark:'#9d86ff',conLight:'#ffffff',conDark:'#120e22'},
+      Amber:{light:'#bd6f1c',dark:'#e7a23f',conLight:'#ffffff',conDark:'#1c1305'}
+    };
+    this.vendors=[
+      {id:'v-northwind',name:'Northwind Supply',color:'#6b8f9c',domain:'northwind-supply.com',sender:'orders@northwind-supply.com'},
+      {id:'v-mori',name:'Atelier Mori',color:'#b07d62',domain:'ateliermori.com',sender:'studio@ateliermori.com'},
+      {id:'v-cedar',name:'Cedar & Pine',color:'#6f8f6a',domain:'cedarandpine.co',sender:'hello@cedarandpine.co'},
+      {id:'v-halcyon',name:'Halcyon Studio',color:'#8a7fb0',domain:'halcyonstudio.com',sender:'sales@halcyonstudio.com'},
+      {id:'v-meridian',name:'Meridian Goods',color:'#c2a14e',domain:'meridiangoods.com',sender:'team@meridiangoods.com'},
+      {id:'v-brightleaf',name:'Brightleaf',color:'#5fa08a',domain:'brightleaf.co',sender:'press@brightleaf.co'},
+      {id:'v-verde',name:'Verde Lab',color:'#a36b78',domain:'verdelab.io',sender:'lab@verdelab.io'}
+    ];
+    this.vmap={}; this.vendors.forEach(v=>this.vmap[v.id]=v);
+    this.accounts=[
+      {id:'gm-purchasing',name:'purchasing@folio.studio',type:'gmail'},
+      {id:'gm-design',name:'design@folio.studio',type:'gmail'},
+      {id:'gm-ops',name:'ops@folio.studio',type:'gmail'},
+      {id:'dr-marketing',name:'Drive · Marketing',type:'drive'},
+      {id:'dr-vendors',name:'Drive · Vendors',type:'drive'},
+      {id:'dr-archive',name:'Drive · Archive',type:'drive'}
+    ];
+    this.folders=[
+      {id:'all',name:'All Images',desc:'Everything across all six connected sources.'},
+      {id:'recent-purchases',name:'Recent Purchases',desc:'Images attached to purchases in the last few months.'},
+      {id:'receipts',name:'Receipts & Invoices',desc:'Receipts and invoices pulled in from email.'},
+      {id:'marketing',name:'Marketing Assets',desc:'Approved imagery for campaigns and the website.'},
+      {id:'lookbooks',name:'Vendor Lookbooks',desc:'Seasonal lookbooks sent over by vendors.'},
+      {id:'project-atlas',name:'Project Atlas',desc:'Working image set for Project Atlas.'},
+      {id:'archive',name:'Archive',desc:'Older images, kept for reference.'}
+    ];
+    this.fmap={}; this.folders.forEach(f=>this.fmap[f.id]=f);
+
+    const built=this.buildImages();
+    this.images=built.images;
+
+    const counts={};
+    this.images.forEach(im=>{ if(im.sender){ counts[im.sender]=(counts[im.sender]||0)+1; } });
+    const seed=[];
+    this.vendors.forEach(v=>seed.push({address:v.sender,vendorId:v.id,included:true,manual:false}));
+    seed.push({address:'receipts@squareup.com',vendorId:null,included:true,manual:false});
+    seed.push({address:'newsletter@designweekly.com',vendorId:null,included:false,manual:false});
+    const senders=seed.map(s=>Object.assign({},s,{count:counts[s.address]||0}));
+
+    this.driveSeed=[
+      {id:'ds-marketing',name:'Drive · Marketing',account:'marketing@folio.studio',kind:'Shared drive',accountId:'dr-marketing',included:true,manual:false},
+      {id:'ds-vendors',name:'Drive · Vendors',account:'vendors@folio.studio',kind:'Shared drive',accountId:'dr-vendors',included:true,manual:false},
+      {id:'ds-archive',name:'Drive · Archive',account:'archive@folio.studio',kind:'Shared drive',accountId:'dr-archive',included:true,manual:false}
+    ];
+
+    let theme=(props.startTheme==='Dark')?'dark':'light';
+    try{ const st=localStorage.getItem('folio.theme'); if(st==='dark'||st==='light') theme=st; }catch(e){}
+
+    this.state={
+      screen:'login', theme, tab:'library',
+      loginToken:'folio_sk_live_8f3a91c2e7b40d6a92', tokenVisible:false,
+      search:'', activeFolder:'all',
+      enabledAccounts:new Set(this.accounts.map(a=>a.id)),
+      enabledVendors:new Set(this.vendors.map(v=>v.id)),
+      dateFrom:'', dateTo:'', datePreset:'all',
+      sort:'newest', pageSize:25, page:1,
+      selected:new Set(), hoverId:null,
+      lightboxIndex:null, addFolderOpen:false, userMenuOpen:false,
+      membership:built.membership, senders, newSender:'', driveSources:this.driveSeed.map(d=>Object.assign({},d)), newDrive:'', toast:null
+    };
+    this._onKey=this._onKey.bind(this);
+    this._setRoot=(el)=>{ this.rootEl=el; if(el) this.applyTheme(); };
+    this._imgError=(e)=>{ if(e&&e.target){ e.target.style.opacity='0'; } };
+  }
+
+  componentDidMount(){ window.addEventListener('keydown',this._onKey); this.applyTheme(); }
+  componentDidUpdate(){ this.applyTheme(); }
+  componentWillUnmount(){ window.removeEventListener('keydown',this._onKey); clearTimeout(this._t); clearTimeout(this._dl); }
+  _onKey(e){ if(this.state.lightboxIndex==null) return; if(e.key==='Escape') this.closeLightbox(); else if(e.key==='ArrowRight') this.lbNext(); else if(e.key==='ArrowLeft') this.lbPrev(); }
+
+  mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  iso(d){ const p=n=>('0'+n).slice(-2); return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate()); }
+  fmtMed(d){ return d.getUTCDate()+' '+this.MON_S[d.getUTCMonth()]+' '+d.getUTCFullYear(); }
+  fmtLong(d){ return d.getUTCDate()+' '+this.MON_L[d.getUTCMonth()]+' '+d.getUTCFullYear(); }
+  fakeId(rng){ const c='abcdefghijklmnopqrstuvwxyz0123456789'; let s=''; for(let i=0;i<14;i++) s+=c[Math.floor(rng()*36)]; return s; }
+
+  buildImages(){
+    const rng=this.mulberry32(20260627);
+    const pick=arr=>arr[Math.floor(rng()*arr.length)];
+    const start=Date.UTC(2024,0,1), end=Date.UTC(2026,5,15);
+    const gmail=this.accounts.filter(a=>a.type==='gmail');
+    const drive=this.accounts.filter(a=>a.type==='drive');
+    const kinds=['lookbook','product','catalog','swatch','hero','detail','press','set','frame','plate'];
+    const subj=['SS26 lookbook assets','Updated product photography','New season swatches','Catalogue spreads — hi-res','Press kit images','Reorder — product shots','Campaign selects'];
+    const dpaths=['Marketing/2026/Campaign','Vendors/Lookbooks','Archive/2024','Marketing/Web/Hero','Vendors/Receipts','Product/Studio'];
+    const images=[];
+    for(let i=0;i<40;i++){
+      const vendor=pick(this.vendors);
+      const isEmail=rng()<0.62;
+      const account=isEmail?pick(gmail):pick(drive);
+      const t=start+Math.floor(rng()*(end-start));
+      const trueDate=new Date(t);
+      let nasT=t+(2+Math.floor(rng()*30))*86400000; if(nasT>end+4*86400000) nasT=end+Math.floor(rng()*4)*86400000;
+      const nasDate=new Date(nasT);
+      const isReceipt=isEmail&&rng()<0.22;
+      const num=1000+Math.floor(rng()*9000);
+      const kind=pick(kinds); const ext=pick(['jpg','jpg','jpg','png']);
+      const filename=isReceipt?('receipt-'+num+'.png'):(kind+'-'+('0'+(1+Math.floor(rng()*98))).slice(-2)+'.'+ext);
+      let sender=null,subject=null,drivePath=null;
+      if(isEmail){
+        if(isReceipt){ sender='receipts@squareup.com'; subject='Receipt for order #'+num; }
+        else if(rng()<0.10){ sender='newsletter@designweekly.com'; subject='This week in design — assets enclosed'; }
+        else { sender=vendor.sender; subject=pick(subj); }
+      } else {
+        drivePath=pick(dpaths)+'/'+filename;
+      }
+      const vendorUrl=isEmail?('https://'+vendor.domain+'/products/'+kind+'-'+num):('https://drive.google.com/file/d/'+this.fakeId(rng)+'/view');
+      const h1=Math.floor(rng()*360), h2=(h1+25+Math.floor(rng()*70))%360;
+      const bg='linear-gradient(135deg,hsl('+h1+' 42% 60%),hsl('+h2+' 38% 44%))';
+      const sd='folio'+i+'-'+num;
+      images.push({id:'img-'+i,idx:i,filename,vendor:vendor.id,vendorName:vendor.name,vendorColor:vendor.color,
+        account:account.id,accountName:account.name,accountType:account.type,
+        trueDate,nasDate,iso:this.iso(trueDate),ts:t,sender,subject,drivePath,vendorUrl,bg,
+        thumb:'https://picsum.photos/seed/'+sd+'/560/420',full:'https://picsum.photos/seed/'+sd+'/1280/960'});
+    }
+    const membership={};
+    images.forEach(im=>{
+      const f=['all']; const age=(end-im.ts)/86400000;
+      if(im.accountType==='gmail'&&age<150) f.push('recent-purchases');
+      if(im.filename.indexOf('receipt')===0) f.push('receipts');
+      if(im.account==='dr-marketing'||(im.drivePath&&im.drivePath.indexOf('Marketing')===0)) f.push('marketing');
+      if(im.vendor==='v-mori'||im.vendor==='v-halcyon'||im.vendor==='v-cedar') f.push('lookbooks');
+      if(im.idx%5===0) f.push('project-atlas');
+      if(im.trueDate.getUTCFullYear()<2025) f.push('archive');
+      membership[im.id]=f;
+    });
+    return {images,membership};
+  }
+
+  computeList(){
+    const s=this.state; const m=s.membership;
+    const inFolder=(im,fid)=> fid==='all'||(m[im.id]||[]).indexOf(fid)>=0;
+    const q=s.search.trim().toLowerCase();
+    let list=this.images.filter(im=>{
+      if(s.activeFolder!=='all'&&!inFolder(im,s.activeFolder)) return false;
+      if(!s.enabledAccounts.has(im.account)) return false;
+      if(!s.enabledVendors.has(im.vendor)) return false;
+      if(s.dateFrom&&im.iso<s.dateFrom) return false;
+      if(s.dateTo&&im.iso>s.dateTo) return false;
+      if(q){ const hay=(im.filename+' '+im.vendorName+' '+(im.sender||'')+' '+(im.subject||'')+' '+im.accountName+' '+(im.drivePath||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+      return true;
+    });
+    const cmp={
+      newest:(a,b)=>b.ts-a.ts, oldest:(a,b)=>a.ts-b.ts,
+      name:(a,b)=>a.filename.localeCompare(b.filename),
+      vendor:(a,b)=>a.vendorName.localeCompare(b.vendorName)||b.ts-a.ts,
+      account:(a,b)=>a.accountName.localeCompare(b.accountName)||b.ts-a.ts
+    }[s.sort]||((a,b)=>b.ts-a.ts);
+    return list.slice().sort(cmp);
+  }
+  currentPageItems(){ const list=this.computeList(); const ps=this.state.pageSize; const pc=Math.max(1,Math.ceil(list.length/ps)); const page=Math.min(this.state.page,pc); return list.slice((page-1)*ps,(page-1)*ps+ps); }
+
+  pageModel(page,count){
+    const out=[]; const add=n=>out.push({type:'page',n,active:n===page,onClick:()=>this.goPage(n)}); const gap=()=>out.push({type:'gap'});
+    if(count<=7){ for(let i=1;i<=count;i++) add(i); return out; }
+    add(1); if(page>3) gap(); const s=Math.max(2,page-1),e=Math.min(count-1,page+1); for(let i=s;i<=e;i++) add(i); if(page<count-2) gap(); add(count); return out;
+  }
+
+  applyTheme(){
+    const dark=this.state.theme==='dark';
+    const acc=this.accentMap[this.props.accent||'Graphite']||this.accentMap.Graphite;
+    const v=dark?{
+      '--bg':'#15130f','--surface':'#1d1a16','--surface-2':'#25211b','--ink':'#f2ede4','--ink-soft':'#b8b0a4','--muted':'#837c6f','--line':'#2c2822','--line-strong':'#3a352d','--field':'#211e19','--shadow':'0 1px 2px rgba(0,0,0,.4), 0 12px 30px -14px rgba(0,0,0,.7)','--overlay':'rgba(8,6,4,.74)'
+    }:{
+      '--bg':'#f7f5f2','--surface':'#ffffff','--surface-2':'#f1eee9','--ink':'#1b1916','--ink-soft':'#514c45','--muted':'#8a847a','--line':'#e8e4dd','--line-strong':'#d9d3ca','--field':'#ffffff','--shadow':'0 1px 2px rgba(40,34,26,.05), 0 10px 26px -14px rgba(40,34,26,.2)','--overlay':'rgba(28,24,20,.5)'
+    };
+    v['--accent']=dark?acc.dark:acc.light; v['--accent-contrast']=dark?acc.conDark:acc.conLight;
+    const el=this.rootEl; if(el){ for(const k in v) el.style.setProperty(k,v[k]); }
+    try{ document.body.style.background=v['--bg']; document.documentElement.style.colorScheme=dark?'dark':'light'; }catch(e){}
+  }
+
+  signIn(){ this.setState({screen:'app'}); }
+  setTheme(t){ this.setState({theme:t}); try{ localStorage.setItem('folio.theme',t); }catch(e){} }
+  setFolder(id){ this.setState({activeFolder:id,page:1,userMenuOpen:false}); }
+  toggleAccount(id){ this.setState(st=>{ const e=new Set(st.enabledAccounts); e.has(id)?e.delete(id):e.add(id); return {enabledAccounts:e,page:1}; }); }
+  toggleVendor(id){ this.setState(st=>{ const e=new Set(st.enabledVendors); e.has(id)?e.delete(id):e.add(id); return {enabledVendors:e,page:1}; }); }
+  setPreset(k){
+    let f='',t=''; const end=Date.UTC(2026,5,15);
+    if(k==='2025'){ f='2025-01-01'; t='2025-12-31'; }
+    else if(k==='2024'){ f='2024-01-01'; t='2024-12-31'; }
+    else if(k==='last90'){ f=this.iso(new Date(end-90*86400000)); t=this.iso(new Date(end)); }
+    this.setState({datePreset:k,dateFrom:f,dateTo:t,page:1});
+  }
+  resetFilters(){ this.setState({activeFolder:'all',enabledAccounts:new Set(this.accounts.map(a=>a.id)),enabledVendors:new Set(this.vendors.map(v=>v.id)),dateFrom:'',dateTo:'',datePreset:'all',search:'',page:1}); }
+  goPage(n){ const list=this.computeList(); const pc=Math.max(1,Math.ceil(list.length/this.state.pageSize)); this.setState({page:Math.max(1,Math.min(n,pc))}); }
+  toggleSelect(id){ this.setState(st=>{ const x=new Set(st.selected); x.has(id)?x.delete(id):x.add(id); return {selected:x}; }); }
+  selectAllPage(){ const ids=this.currentPageItems().map(i=>i.id); this.setState(st=>{ const x=new Set(st.selected); const all=ids.length>0&&ids.every(id=>x.has(id)); ids.forEach(id=>{ all?x.delete(id):x.add(id); }); return {selected:x}; }); }
+  downloadSelected(){ const n=this.state.selected.size; if(!n) return; this.toast('Preparing folio-export-'+n+'.zip …'); clearTimeout(this._dl); this._dl=setTimeout(()=>this.toast('Downloaded '+n+' image'+(n>1?'s':'')+' · folio-export.zip'),900); }
+  openVendor(im){ this.toast('Opening at vendor ↗  '+im.vendorUrl); }
+  openLightboxId(id){ const list=this.computeList(); const idx=list.findIndex(x=>x.id===id); if(idx>=0) this.setState({lightboxIndex:idx,addFolderOpen:false}); }
+  closeLightbox(){ this.setState({lightboxIndex:null,addFolderOpen:false}); }
+  lbNext(){ const list=this.computeList(); this.setState(st=>({lightboxIndex:Math.min((st.lightboxIndex==null?0:st.lightboxIndex)+1,list.length-1),addFolderOpen:false})); }
+  lbPrev(){ this.setState(st=>({lightboxIndex:Math.max((st.lightboxIndex==null?0:st.lightboxIndex)-1,0),addFolderOpen:false})); }
+  toggleMembership(imgId,fid){ this.setState(st=>{ const mm=Object.assign({},st.membership); const arr=(mm[imgId]||[]).slice(); const i=arr.indexOf(fid); if(i>=0) arr.splice(i,1); else arr.push(fid); mm[imgId]=arr; return {membership:mm}; },()=>{ const name=(this.fmap[fid]||{}).name||fid; this.toast('Updated collections · '+name); }); }
+  toggleSender(addr){ this.setState(st=>({senders:st.senders.map(x=>x.address===addr?Object.assign({},x,{included:!x.included}):x)})); }
+  setSenderVendor(addr,v){ this.setState(st=>({senders:st.senders.map(x=>x.address===addr?Object.assign({},x,{vendorId:v||null}):x)})); }
+  addSender(){
+    const raw=(this.state.newSender||'').trim(); if(!raw) return;
+    const v=raw.toLowerCase();
+    if(this.state.senders.some(x=>x.address.toLowerCase()===v)){ this.toast('That source is already in the list.'); return; }
+    const ok=/^@[^@\s]+\.[^@\s]+$/.test(raw)||/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw);
+    if(!ok){ this.toast('Enter an email (name@vendor.com) or a domain (@vendor.com).'); return; }
+    this.setState(st=>({senders:st.senders.concat([{address:raw,vendorId:null,included:true,manual:true,count:0}]),newSender:''}));
+    this.toast('Added '+raw+' · will include on next sync');
+  }
+  toggleDrive(id){ this.setState(st=>({driveSources:st.driveSources.map(d=>d.id===id?Object.assign({},d,{included:!d.included}):d)})); }
+  addDrive(){
+    const raw=(this.state.newDrive||'').trim(); if(!raw) return;
+    if(this.state.driveSources.some(d=>d.name.toLowerCase()===raw.toLowerCase())){ this.toast('That drive or folder is already in the list.'); return; }
+    this.setState(st=>({driveSources:st.driveSources.concat([{id:'ds-'+Date.now(),name:raw,account:'—',kind:'Folder',accountId:null,included:true,manual:true}]),newDrive:''}));
+    this.toast('Added '+raw+' · will scan on next sync');
+  }
+  connectDrive(){ this.toast('Opening Google authorization…'); }
+  setHover(id){ if(this.state.hoverId!==id) this.setState({hoverId:id}); }
+  toast(msg){ clearTimeout(this._t); this.setState({toast:msg}); this._t=setTimeout(()=>this.setState({toast:null}),2400); }
+
+  renderVals(){
+    const s=this.state;
+    const list=this.computeList();
+    const total=list.length;
+    const ps=s.pageSize;
+    const pc=Math.max(1,Math.ceil(total/ps));
+    const page=Math.min(s.page,pc);
+    const startI=(page-1)*ps;
+    const pageItems=list.slice(startI,startI+ps);
+    const m=s.membership; const sel=s.selected;
+
+    const folderCount=fid=> fid==='all'? this.images.length : this.images.filter(im=>(m[im.id]||[]).indexOf(fid)>=0).length;
+    const folders=this.folders.map(f=>({id:f.id,name:f.name,count:folderCount(f.id),active:s.activeFolder===f.id,onClick:()=>this.setFolder(f.id)}));
+
+    const accCount=id=>this.images.filter(im=>im.account===id).length;
+    const mkAcc=a=>({id:a.id,name:a.name,count:accCount(a.id),checked:s.enabledAccounts.has(a.id),onToggle:()=>this.toggleAccount(a.id)});
+    const gmailAccounts=this.accounts.filter(a=>a.type==='gmail').map(mkAcc);
+    const driveAccounts=this.accounts.filter(a=>a.type==='drive').map(mkAcc);
+
+    const venCount=id=>this.images.filter(im=>im.vendor===id).length;
+    const vendors=this.vendors.map(v=>({id:v.id,name:v.name,count:venCount(v.id),checked:s.enabledVendors.has(v.id),dotStyle:{width:'8px',height:'8px',borderRadius:'50%',flexShrink:0,background:v.color},onToggle:()=>this.toggleVendor(v.id)}));
+
+    const pb={height:'27px',padding:'0 11px',borderRadius:'8px',fontSize:'12px',cursor:'pointer'};
+    const presets=[['all','All time'],['last90','Last 90 days'],['2025','2025'],['2024','2024']].map(p=>({k:p[0],label:p[1],onClick:()=>this.setPreset(p[0]),style: s.datePreset===p[0]?Object.assign({},pb,{border:'1px solid var(--accent)',background:'var(--accent)',color:'var(--accent-contrast)',fontWeight:600}):Object.assign({},pb,{border:'1px solid var(--line-strong)',background:'var(--field)',color:'var(--ink-soft)',fontWeight:500})}));
+
+    const q=s.search.trim();
+    const filtersActive = s.activeFolder!=='all'||s.enabledAccounts.size<this.accounts.length||s.enabledVendors.size<this.vendors.length||!!s.dateFrom||!!s.dateTo||!!q;
+    const coll=this.fmap[s.activeFolder]||this.folders[0];
+
+    const tiles=pageItems.map(im=>{
+      const selected=sel.has(im.id); const hov=s.hoverId===im.id;
+      return {id:im.id,bgStyle:{position:'absolute',inset:0,background:im.bg},thumb:im.thumb,filename:im.filename,
+        vendorName:im.vendorName,vendorDotStyle:{width:'8px',height:'8px',borderRadius:'50%',flexShrink:0,background:im.vendorColor},
+        dateLabel:this.fmtMed(im.trueDate),selected,showCheckbox:selected||hov,showTop:hov,
+        onOpen:()=>this.openLightboxId(im.id),
+        onToggle:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.toggleSelect(im.id); },
+        onVendor:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.openVendor(im); },
+        onEnter:()=>this.setHover(im.id),onLeave:()=>this.setHover(null)};
+    });
+
+    const pageIds=pageItems.map(im=>im.id);
+    const allPageSelected=pageIds.length>0&&pageIds.every(id=>sel.has(id));
+
+    const pgb={minWidth:'34px',height:'34px',padding:'0 6px',borderRadius:'9px',fontSize:'13px',cursor:'pointer',border:'1px solid var(--line-strong)'};
+    const pages=this.pageModel(page,pc).map(p=> p.type==='gap'?{isGap:true,isPage:false}:{isGap:false,isPage:true,n:p.n,onClick:p.onClick,style: p.active?Object.assign({},pgb,{background:'var(--accent)',color:'var(--accent-contrast)',fontWeight:700,borderColor:'var(--accent)'}):Object.assign({},pgb,{background:'var(--surface)',color:'var(--ink)',fontWeight:500})});
+    const prevDisabled=page<=1, nextDisabled=page>=pc;
+    const navStyle=dis=>({height:'34px',padding:'0 13px',border:'1px solid var(--line-strong)',borderRadius:'9px',background:'var(--surface)',fontSize:'13px',color:dis?'var(--muted)':'var(--ink)',cursor:dis?'default':'pointer',opacity:dis?0.5:1});
+
+    const tbb={height:'28px',padding:'0 12px',border:'none',borderRadius:'7px',fontSize:'12.5px',fontWeight:600,cursor:'pointer'};
+    const lightActive=s.theme==='light';
+    const lightBtnStyle=lightActive?Object.assign({},tbb,{background:'var(--surface)',color:'var(--ink)',boxShadow:'0 1px 2px rgba(0,0,0,.12)'}):Object.assign({},tbb,{background:'transparent',color:'var(--muted)'});
+    const darkBtnStyle=!lightActive?Object.assign({},tbb,{background:'var(--surface)',color:'var(--ink)',boxShadow:'0 1px 2px rgba(0,0,0,.12)'}):Object.assign({},tbb,{background:'transparent',color:'var(--muted)'});
+
+    const dense=(this.props.density==='Compact');
+    const gmin=dense?188:248; const ggap=dense?'12px':'16px';
+    const gridStyle={display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax('+gmin+'px,1fr))',gap:ggap};
+
+    const sList=s.senders.slice().sort((a,b)=> (b.count-a.count)||a.address.localeCompare(b.address)).map(se=>({
+      address:se.address,count:se.count,included:se.included,manual:se.manual,vendorId:se.vendorId||'',
+      onToggle:()=>this.toggleSender(se.address),onVendor:(e)=>this.setSenderVendor(se.address,e.target.value),
+      rowStyle: se.included?{}:{opacity:0.5},
+      trackStyle:{position:'relative',width:'40px',height:'23px',borderRadius:'999px',border:'none',cursor:'pointer',padding:0,transition:'background .15s',background:se.included?'var(--accent)':'var(--line-strong)'},
+      knobStyle:{position:'absolute',top:'2px',left:'2px',width:'19px',height:'19px',borderRadius:'50%',background:'#fff',boxShadow:'0 1px 2px rgba(0,0,0,.3)',transition:'transform .15s',transform:se.included?'translateX(17px)':'translateX(0)'}
+    }));
+    const sIncluded=s.senders.filter(x=>x.included).length;
+
+    const driveCount=accId=> accId? this.images.filter(im=>im.account===accId).length : 0;
+    const driveRows=s.driveSources.map(d=>({
+      id:d.id,name:d.name,account:d.account,kind:d.kind,manual:d.manual,included:d.included,count:driveCount(d.accountId),
+      onToggle:()=>this.toggleDrive(d.id),
+      rowStyle:d.included?{}:{opacity:0.5},
+      trackStyle:{position:'relative',width:'40px',height:'23px',borderRadius:'999px',border:'none',cursor:'pointer',padding:0,transition:'background .15s',background:d.included?'var(--accent)':'var(--line-strong)'},
+      knobStyle:{position:'absolute',top:'2px',left:'2px',width:'19px',height:'19px',borderRadius:'50%',background:'#fff',boxShadow:'0 1px 2px rgba(0,0,0,.3)',transition:'transform .15s',transform:d.included?'translateX(17px)':'translateX(0)'}
+    }));
+    const dIncluded=s.driveSources.filter(d=>d.included).length;
+
+    let lb=null, lightboxOpen=false;
+    if(s.lightboxIndex!=null&&list.length>0){
+      const li=Math.max(0,Math.min(s.lightboxIndex,list.length-1));
+      const im=list[li]; lightboxOpen=true;
+      const chips=(m[im.id]||[]).filter(f=>f!=='all').map(f=>(this.fmap[f]||{}).name).filter(Boolean);
+      lb={
+        filename:im.filename,bgStyle:{position:'absolute',inset:0,background:im.bg},full:im.full,imgStyle:{position:'absolute',inset:0,backgroundImage:'url("'+im.full+'")',backgroundSize:'contain',backgroundPosition:'center',backgroundRepeat:'no-repeat'},
+        trueLong:this.fmtLong(im.trueDate),nasLong:this.fmtLong(im.nasDate),
+        accountName:im.accountName,accountType: im.accountType==='gmail'?'Gmail':'Google Drive',
+        isEmail:im.accountType==='gmail',isDrive:im.accountType==='drive',
+        sender:im.sender,subject:im.subject,drivePath:im.drivePath,
+        vendorName:im.vendorName,vendorDotStyle:{width:'10px',height:'10px',borderRadius:'50%',flexShrink:0,background:im.vendorColor},
+        folderChips:chips,hasFolders:chips.length>0,noFolders:chips.length===0,
+        hasPrev:li>0,hasNext:li<list.length-1,posLabel:(li+1)+' of '+list.length,addOpen:s.addFolderOpen,
+        onBackdrop:(e)=>{ if(e.target===e.currentTarget) this.closeLightbox(); },
+        onClose:()=>this.closeLightbox(),onPrev:()=>this.lbPrev(),onNext:()=>this.lbNext(),
+        onDownload:()=>this.toast('Saved '+im.filename),onVendor:()=>this.openVendor(im),
+        onToggleAdd:()=>this.setState(st=>({addFolderOpen:!st.addFolderOpen})),
+        folderToggles:this.folders.filter(f=>f.id!=='all').map(f=>({id:f.id,name:f.name,inFolder:(m[im.id]||[]).indexOf(f.id)>=0,onToggle:()=>this.toggleMembership(im.id,f.id)}))
+      };
+    }
+
+    return {
+      setRoot:this._setRoot, onImgError:this._imgError,
+      showLogin:s.screen==='login', showApp:s.screen==='app',
+      loginToken:s.loginToken, onLoginToken:(e)=>this.setState({loginToken:e.target.value}),
+      onLoginKey:(e)=>{ if(e.key==='Enter') this.signIn(); }, onSignIn:()=>this.signIn(),
+      tokenInputType: s.tokenVisible?'text':'password', tokenToggleLabel: s.tokenVisible?'Hide':'Show',
+      onToggleTokenVisible:()=>this.setState(st=>({tokenVisible:!st.tokenVisible})),
+      onTokenHelp:()=>this.toast('Generate a token in Folio → Settings → Access tokens.'),
+      isLibrary:s.tab==='library', isSenders:s.tab==='senders', libActive:s.tab==='library', senActive:s.tab==='senders',
+      setTabLibrary:()=>this.setState({tab:'library',userMenuOpen:false}), setTabSenders:()=>this.setState({tab:'senders',userMenuOpen:false}),
+      searchValue:s.search, onSearch:(e)=>this.setState({search:e.target.value,page:1}), hasSearch:!!s.search, onClearSearch:()=>this.setState({search:'',page:1}),
+      onLight:()=>this.setTheme('light'), onDark:()=>this.setTheme('dark'), lightBtnStyle, darkBtnStyle,
+      userName:'Avery Cole', userInitial:'A', userMenuOpen:s.userMenuOpen, onToggleUserMenu:()=>this.setState(st=>({userMenuOpen:!st.userMenuOpen})),
+      onGotoSenders:()=>this.setState({tab:'senders',userMenuOpen:false}), onLogout:()=>this.setState({screen:'login',userMenuOpen:false}),
+      folders,gmailAccounts,driveAccounts,vendors,presets,
+      dateFrom:s.dateFrom,onDateFrom:(e)=>this.setState({dateFrom:e.target.value,datePreset:'custom',page:1}),
+      dateTo:s.dateTo,onDateTo:(e)=>this.setState({dateTo:e.target.value,datePreset:'custom',page:1}),
+      filtersActive,onResetFilters:()=>this.resetFilters(),
+      collName:coll.name,collDesc:coll.desc,collCount:total,
+      onSelectAllPage:()=>this.selectAllPage(),allPageSelected,
+      hasSelection:sel.size>0,selectedCount:sel.size,onDownloadSelected:()=>this.downloadSelected(),onClearSelection:()=>this.setState({selected:new Set()}),
+      sortValue:s.sort,onSort:(e)=>this.setState({sort:e.target.value,page:1}),
+      pageSizeValue:String(s.pageSize),onPageSize:(e)=>this.setState({pageSize:parseInt(e.target.value,10),page:1}),
+      gridStyle,tiles,hasResults:total>0,noResults:total===0,
+      showPagination:total>0,pages,onPrev:()=>this.goPage(page-1),onNext:()=>this.goPage(page+1),prevStyle:navStyle(prevDisabled),nextStyle:navStyle(nextDisabled),
+      rangeLabel: total===0?'No images':('Showing '+(startI+1)+'–'+Math.min(startI+ps,total)+' of '+total),
+      sTotal:s.senders.length,sIncluded,sOff:s.senders.length-sIncluded,
+      newSender:s.newSender,onNewSender:(e)=>this.setState({newSender:e.target.value}),onAddKey:(e)=>{ if(e.key==='Enter') this.addSender(); },onAddSender:()=>this.addSender(),
+      senders:sList,vendorOptions:this.vendors.map(v=>({id:v.id,name:v.name})),
+      driveRows,dTotal:s.driveSources.length,dIncluded,
+      newDrive:s.newDrive,onNewDrive:(e)=>this.setState({newDrive:e.target.value}),onAddDrive:()=>this.addDrive(),onAddDriveKey:(e)=>{ if(e.key==='Enter') this.addDrive(); },onConnectDrive:()=>this.connectDrive(),
+      lightboxOpen,lb,
+      toastOpen:!!s.toast,toast:s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>
