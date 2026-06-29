@@ -180,12 +180,13 @@ export async function deleteVendor(id) {
 }
 
 // ------------------------------------------------------- collection rules -- //
-// Auto-filing rules: a target collection (folder_id) + a list of ANDed
-// conditions {field, op, value}. Matching images are filed into the folder on
-// every sync; /apply files already-matching images on demand. The server
-// validates conditions (422 on bad field/op/value). In DEMO mode (no backend)
-// the GET resolves to an empty list and mutations resolve to benign stubs so
-// the screen still renders.
+// v3 automation rules: ONE condition + up to two actions. A rule is
+// {field, value?, account_id?, vendor_id?, folder_id?, enabled}, where field is
+// one of sender|domain|filename|subject|account. On each sync (and on /apply)
+// a matching image gets the rule's vendor assigned and/or is filed into the
+// rule's collection. The server validates the rule (422 on a bad/empty shape).
+// In DEMO mode (no backend) the GET resolves to an empty list and mutations
+// resolve to benign stubs so the screen still renders.
 export async function collectionRules() {
   if (DEMO) {
     const d = await demo();
@@ -222,7 +223,7 @@ export async function applyCollectionRules() {
   if (DEMO) {
     const d = await demo();
     if (d.api.applyCollectionRules) return d.api.applyCollectionRules();
-    return { applied: {}, total_added: 0 };
+    return { applied: {}, total_filed: 0, total_vendored: 0 };
   }
   return req("POST", "/api/collection-rules/apply", {});
 }

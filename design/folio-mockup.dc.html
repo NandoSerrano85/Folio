@@ -79,6 +79,7 @@ input,button,select,textarea{font-family:inherit}
       <nav style="display:flex;align-items:center;gap:2px">
         <button onClick="{{ setTabLibrary }}" style="position:relative;background:none;border:none;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink);padding:9px 10px;border-radius:8px" style-hover="background:var(--surface-2)">Library<sc-if value="{{ libActive }}"><span style="position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px"></span></sc-if></button>
         <button onClick="{{ setTabSenders }}" style="position:relative;background:none;border:none;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink);padding:9px 10px;border-radius:8px" style-hover="background:var(--surface-2)">Senders<sc-if value="{{ senActive }}"><span style="position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px"></span></sc-if></button>
+        <button onClick="{{ setTabRules }}" style="position:relative;background:none;border:none;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink);padding:9px 10px;border-radius:8px" style-hover="background:var(--surface-2)">Rules<sc-if value="{{ rulesActive }}"><span style="position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px"></span></sc-if></button>
       </nav>
     </div>
     <div style="flex:1 1 0;display:flex;justify-content:center;min-width:0">
@@ -126,6 +127,19 @@ input,button,select,textarea{font-family:inherit}
           </sc-for>
         </div>
 
+        <sc-if value="{{ sidebarAddOpen }}">
+          <div style="display:flex;gap:6px;margin:6px 8px 0">
+            <input value="{{ newSidebarCollection }}" onChange="{{ onNewSidebarCollection }}" onKeyDown="{{ onSidebarAddKey }}" placeholder="Collection name…" style="flex:1;min-width:0;height:34px;padding:0 10px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;outline:none;font-size:13px;color:var(--ink)" />
+            <button onClick="{{ onAddSidebarCollection }}" style="height:34px;padding:0 12px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer">Add</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sidebarAddClosed }}">
+          <button onClick="{{ onToggleSidebarAdd }}" style="display:flex;align-items:center;gap:9px;width:100%;margin-top:2px;background:none;border:none;cursor:pointer;text-align:left;padding:8px 10px;border-radius:9px;color:var(--ink-soft);font-size:13px;font-weight:500" style-hover="background:var(--surface-2)">
+            <span style="display:flex;width:16px;height:16px;align-items:center;justify-content:center;border:1px dashed var(--line-strong);border-radius:5px;flex-shrink:0"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><line x1="6" y1="2.5" x2="6" y2="9.5"></line><line x1="2.5" y1="6" x2="9.5" y2="6"></line></svg></span>
+            New collection
+          </button>
+        </sc-if>
+
         <div style="height:1px;background:var(--line);margin:18px 8px"></div>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 8px 10px">Source account</div>
         <div style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:0 8px 5px;letter-spacing:.02em">Gmail</div>
@@ -161,6 +175,19 @@ input,button,select,textarea{font-family:inherit}
             </div>
           </sc-for>
         </div>
+
+        <sc-if value="{{ sidebarVendorAddOpen }}">
+          <div style="display:flex;gap:6px;margin:6px 8px 0">
+            <input value="{{ newSidebarVendor }}" onChange="{{ onNewSidebarVendor }}" onKeyDown="{{ onSidebarVendorAddKey }}" placeholder="Vendor name…" style="flex:1;min-width:0;height:34px;padding:0 10px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;outline:none;font-size:13px;color:var(--ink)" />
+            <button onClick="{{ onAddSidebarVendor }}" style="height:34px;padding:0 12px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer">Add</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sidebarVendorAddClosed }}">
+          <button onClick="{{ onToggleSidebarVendorAdd }}" style="display:flex;align-items:center;gap:9px;width:100%;margin-top:2px;background:none;border:none;cursor:pointer;text-align:left;padding:8px 10px;border-radius:9px;color:var(--ink-soft);font-size:13px;font-weight:500" style-hover="background:var(--surface-2)">
+            <span style="display:flex;width:16px;height:16px;align-items:center;justify-content:center;border:1px dashed var(--line-strong);border-radius:5px;flex-shrink:0"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><line x1="6" y1="2.5" x2="6" y2="9.5"></line><line x1="2.5" y1="6" x2="9.5" y2="6"></line></svg></span>
+            New vendor
+          </button>
+        </sc-if>
 
         <div style="height:1px;background:var(--line);margin:18px 8px"></div>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 8px 9px">Date range</div>
@@ -306,33 +333,82 @@ input,button,select,textarea{font-family:inherit}
         <input value="{{ newSender }}" onChange="{{ onNewSender }}" onKeyDown="{{ onAddKey }}" placeholder="name@vendor.com   or   @vendor.com" style="flex:1;max-width:420px;height:40px;padding:0 13px;background:var(--field);border:1px solid var(--line-strong);border-radius:10px;outline:none;font-size:13.5px;color:var(--ink)" />
         <button onClick="{{ onAddSender }}" style="height:40px;padding:0 18px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:10px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)">Add source</button>
       </div>
+      <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0"></span>
+        <span style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.02em">Included</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">{{ sIncluded }}</span>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);margin-bottom:24px">
+        <div style="display:grid;grid-template-columns:1fr 116px 198px 92px;align-items:center;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">
+          <span>Sender</span><span style="text-align:right">Image emails</span><span style="padding-left:18px">Mapped vendor</span><span style="text-align:right">Include</span>
+        </div>
+        <sc-if value="{{ hasIncluded }}">
+          <div style="max-height:312px;overflow-y:auto">
+            <sc-for list="{{ includedSenders }}" as="se" hint-placeholder-count="5">
+              <div style="{{ se.rowStyle }}">
+                <div style="display:grid;grid-template-columns:1fr 116px 198px 92px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line)">
+                  <div style="min-width:0">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ se.address }}</div>
+                    <sc-if value="{{ se.manual }}"><span style="display:inline-block;margin-top:5px;font-size:9.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:5px">Added manually</span></sc-if>
+                  </div>
+                  <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft)">{{ se.count }}</div>
+                  <div style="padding-left:18px">
+                    <div style="position:relative">
+                      <select value="{{ se.vendorId }}" onChange="{{ se.onVendor }}" style="appearance:none;-webkit-appearance:none;width:100%;height:34px;padding:0 28px 0 11px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-size:12.5px;cursor:pointer;outline:none">
+                        <option value="">— Unmapped —</option>
+                        <sc-for list="{{ vendorOptions }}" as="vo"><option value="{{ vo.id }}">{{ vo.name }}</option></sc-for>
+                      </select>
+                      <span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+                    </div>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end">
+                    <button onClick="{{ se.onToggle }}" style="{{ se.trackStyle }}"><span style="{{ se.knobStyle }}"></span></button>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noIncluded }}"><div style="padding:26px 18px;text-align:center;color:var(--muted);font-size:12.5px">No senders are included right now.</div></sc-if>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--line-strong);flex-shrink:0"></span>
+        <span style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.02em">Not included</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">{{ sOff }}</span>
+      </div>
       <div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)">
         <div style="display:grid;grid-template-columns:1fr 116px 198px 92px;align-items:center;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">
           <span>Sender</span><span style="text-align:right">Image emails</span><span style="padding-left:18px">Mapped vendor</span><span style="text-align:right">Include</span>
         </div>
-        <sc-for list="{{ senders }}" as="se" hint-placeholder-count="9">
-          <div style="{{ se.rowStyle }}">
-            <div style="display:grid;grid-template-columns:1fr 116px 198px 92px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line)">
-              <div style="min-width:0">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ se.address }}</div>
-                <sc-if value="{{ se.manual }}"><span style="display:inline-block;margin-top:5px;font-size:9.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:5px">Added manually</span></sc-if>
-              </div>
-              <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft)">{{ se.count }}</div>
-              <div style="padding-left:18px">
-                <div style="position:relative">
-                  <select value="{{ se.vendorId }}" onChange="{{ se.onVendor }}" style="appearance:none;-webkit-appearance:none;width:100%;height:34px;padding:0 28px 0 11px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-size:12.5px;cursor:pointer;outline:none">
-                    <option value="">— Unmapped —</option>
-                    <sc-for list="{{ vendorOptions }}" as="vo"><option value="{{ vo.id }}">{{ vo.name }}</option></sc-for>
-                  </select>
-                  <span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+        <sc-if value="{{ hasExcluded }}">
+          <div style="max-height:312px;overflow-y:auto">
+            <sc-for list="{{ excludedSenders }}" as="se" hint-placeholder-count="3">
+              <div style="{{ se.rowStyle }}">
+                <div style="display:grid;grid-template-columns:1fr 116px 198px 92px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line)">
+                  <div style="min-width:0">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ se.address }}</div>
+                    <sc-if value="{{ se.manual }}"><span style="display:inline-block;margin-top:5px;font-size:9.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:5px">Added manually</span></sc-if>
+                  </div>
+                  <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft)">{{ se.count }}</div>
+                  <div style="padding-left:18px">
+                    <div style="position:relative">
+                      <select value="{{ se.vendorId }}" onChange="{{ se.onVendor }}" style="appearance:none;-webkit-appearance:none;width:100%;height:34px;padding:0 28px 0 11px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-size:12.5px;cursor:pointer;outline:none">
+                        <option value="">— Unmapped —</option>
+                        <sc-for list="{{ vendorOptions }}" as="vo"><option value="{{ vo.id }}">{{ vo.name }}</option></sc-for>
+                      </select>
+                      <span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+                    </div>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end">
+                    <button onClick="{{ se.onToggle }}" style="{{ se.trackStyle }}"><span style="{{ se.knobStyle }}"></span></button>
+                  </div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:flex-end">
-                <button onClick="{{ se.onToggle }}" style="{{ se.trackStyle }}"><span style="{{ se.knobStyle }}"></span></button>
-              </div>
-            </div>
+            </sc-for>
           </div>
-        </sc-for>
+        </sc-if>
+        <sc-if value="{{ noExcluded }}"><div style="padding:26px 18px;text-align:center;color:var(--muted);font-size:12.5px">Everything discovered is being imported.</div></sc-if>
       </div>
       <p style="margin:18px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.6">Changes apply on the next sync (hourly). Turning a sender off stops importing new attachments; images already in the library stay.</p>
 
@@ -370,6 +446,108 @@ input,button,select,textarea{font-family:inherit}
         </sc-for>
       </div>
       <p style="margin:18px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.6">Connecting a Google account opens Google's authorization. Folio only reads image files in the drives and folders you add here.</p>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isRules }}">
+    <div style="max-width:980px;margin:0 auto;padding:32px 26px 72px">
+      <h1 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:28px;letter-spacing:-.01em">Automation rules</h1>
+      <p style="margin:11px 0 0;max-width:64ch;color:var(--ink-soft);font-size:14px;line-height:1.6">Rules tag images automatically as they're imported. When an image matches a condition, Folio assigns the vendor and drops it into the collections you choose — so the library stays organized without manual sorting.</p>
+      <div style="display:flex;gap:14px;margin:20px 0 22px;font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">
+        <span>{{ ruleCount }} rules</span><span>·</span><span>{{ ruleEnabledCount }} on</span>
+      </div>
+
+      <div style="border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:18px 18px 20px;margin-bottom:26px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">New rule</div>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+          <div style="width:188px;flex-shrink:0">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">When an image's…</div>
+            <div style="position:relative">
+              <select value="{{ ruleField }}" onChange="{{ onRuleField }}" style="appearance:none;-webkit-appearance:none;width:100%;height:38px;padding:0 30px 0 12px;background:var(--field);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13px;cursor:pointer;outline:none">
+                <option value="sender">Sender</option>
+                <option value="domain">Email domain</option>
+                <option value="filename">Filename</option>
+                <option value="subject">Subject</option>
+                <option value="account">Source account</option>
+              </select>
+              <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+            </div>
+          </div>
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">{{ ruleValueLabel }}</div>
+            <sc-if value="{{ ruleIsAccount }}">
+              <div style="position:relative">
+                <select value="{{ ruleAccount }}" onChange="{{ onRuleAccount }}" style="appearance:none;-webkit-appearance:none;width:100%;height:38px;padding:0 30px 0 12px;background:var(--field);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13px;cursor:pointer;outline:none">
+                  <sc-for list="{{ accountOptions }}" as="ao"><option value="{{ ao.id }}">{{ ao.name }}</option></sc-for>
+                </select>
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ruleIsText }}">
+              <input value="{{ ruleValue }}" onChange="{{ onRuleValue }}" onKeyDown="{{ onRuleValueKey }}" placeholder="{{ ruleValuePlaceholder }}" style="width:100%;height:38px;padding:0 12px;background:var(--field);border:1px solid var(--line-strong);border-radius:9px;outline:none;font-size:13px;color:var(--ink)" />
+            </sc-if>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-top:15px">
+          <div style="width:220px;flex-shrink:0">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Assign vendor</div>
+            <div style="position:relative">
+              <select value="{{ ruleVendor }}" onChange="{{ onRuleVendor }}" style="appearance:none;-webkit-appearance:none;width:100%;height:38px;padding:0 30px 0 12px;background:var(--field);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13px;cursor:pointer;outline:none">
+                <option value="">— No vendor —</option>
+                <sc-for list="{{ vendorOptions }}" as="vo"><option value="{{ vo.id }}">{{ vo.name }}</option></sc-for>
+              </select>
+              <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+            </div>
+          </div>
+          <div style="width:220px;flex-shrink:0">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Add to collection</div>
+            <div style="position:relative">
+              <select value="{{ ruleFolder }}" onChange="{{ onRuleFolder }}" style="appearance:none;-webkit-appearance:none;width:100%;height:38px;padding:0 30px 0 12px;background:var(--field);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13px;cursor:pointer;outline:none">
+                <option value="">— No collection —</option>
+                <sc-for list="{{ folderOptionsNoAll }}" as="fo"><option value="{{ fo.id }}">{{ fo.name }}</option></sc-for>
+              </select>
+              <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+            </div>
+          </div>
+          <div style="flex:1;min-width:8px"></div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);white-space:nowrap">Matches {{ draftMatches }} now</span>
+            <button onClick="{{ onAddRule }}" style="height:38px;padding:0 18px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:10px;font-weight:600;cursor:pointer;white-space:nowrap" style-hover="filter:brightness(.94)">Add rule</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 2px 12px">
+        <h2 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:19px;letter-spacing:-.01em">Active rules</h2>
+        <button onClick="{{ onApplyRules }}" style="height:32px;padding:0 13px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:var(--surface-2)">Run all rules now</button>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)">
+        <div style="display:grid;grid-template-columns:1.5fr 1.3fr 80px 104px;align-items:center;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">
+          <span>When</span><span>Assigns</span><span style="text-align:right">Matches</span><span style="text-align:right">On</span>
+        </div>
+        <sc-if value="{{ hasRules }}">
+          <sc-for list="{{ ruleRows }}" as="r" hint-placeholder-count="3">
+            <div style="{{ r.rowStyle }}">
+              <div style="display:grid;grid-template-columns:1.5fr 1.3fr 80px 104px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line)">
+                <div style="font-size:13.5px;color:var(--ink);padding-right:12px">{{ r.cond }}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;padding-right:12px">
+                  <sc-if value="{{ r.hasVendor }}"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);padding:3px 9px;border-radius:999px"><span style="{{ r.vDotStyle }}"></span>{{ r.vName }}</span></sc-if>
+                  <sc-if value="{{ r.hasFolder }}"><span style="font-size:12px;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);padding:3px 9px;border-radius:999px">+ {{ r.fName }}</span></sc-if>
+                </div>
+                <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft)">{{ r.matches }}</div>
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px">
+                  <button onClick="{{ r.onToggle }}" style="{{ r.trackStyle }}"><span style="{{ r.knobStyle }}"></span></button>
+                  <button onClick="{{ r.onDelete }}" style="display:flex;background:none;border:none;cursor:pointer;color:var(--muted);padding:3px" style-hover="color:var(--ink)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,4 13.5,4"></polyline><path d="M6 4V2.7h4V4"></path><path d="M4.2 4l.6 9.2h6.4l.6-9.2"></path></svg></button>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </sc-if>
+        <sc-if value="{{ noRules }}">
+          <div style="padding:34px 18px;text-align:center;color:var(--muted);font-size:13px">No rules yet. Build one above to tag images automatically.</div>
+        </sc-if>
+      </div>
+      <p style="margin:16px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.6">Rules run on each import (hourly). “Matches” counts images in the library that currently fit the condition. Turning a rule off stops future tagging; images already tagged keep their vendor and collections.</p>
     </div>
   </sc-if>
 
@@ -578,6 +756,12 @@ class Component extends DCLogic {
       {id:'ds-archive',name:'Drive · Archive',account:'archive@folio.studio',kind:'Shared drive',accountId:'dr-archive',included:true,manual:false}
     ];
 
+    this.ruleSeed=[
+      {id:'rule-1',field:'domain',value:'@northwind-supply.com',vendorId:'v-northwind',folderId:'recent-purchases',enabled:true},
+      {id:'rule-2',field:'filename',value:'receipt',vendorId:null,folderId:'receipts',enabled:true},
+      {id:'rule-3',field:'subject',value:'lookbook',vendorId:'v-mori',folderId:'lookbooks',enabled:true}
+    ];
+
     let theme=(props.startTheme==='Dark')?'dark':'light';
     try{ const st=localStorage.getItem('folio.theme'); if(st==='dark'||st==='light') theme=st; }catch(e){}
 
@@ -591,7 +775,7 @@ class Component extends DCLogic {
       sort:'newest', pageSize:25, page:1,
       selected:new Set(), hoverId:null,
       lightboxIndex:null, addFolderOpen:false, userMenuOpen:false,
-      membership:built.membership, senders, newSender:'', driveSources:this.driveSeed.map(d=>Object.assign({},d)), newDrive:'', editMode:null, editIds:[], editVendor:'', editCollections:new Set(), editColActions:{}, newEditVendor:'', newEditCollection:'', toast:null
+      membership:built.membership, senders, newSender:'', driveSources:this.driveSeed.map(d=>Object.assign({},d)), newDrive:'', rules:this.ruleSeed.map(r=>Object.assign({},r)), ruleField:'sender', ruleValue:'', ruleAccount:this.accounts[0].id, ruleVendor:'', ruleFolder:'', newSidebarCollection:'', sidebarAddOpen:false, newSidebarVendor:'', sidebarVendorAddOpen:false, editMode:null, editIds:[], editVendor:'', editCollections:new Set(), editColActions:{}, newEditVendor:'', newEditCollection:'', toast:null
     };
     this._onKey=this._onKey.bind(this);
     this._setRoot=(el)=>{ this.rootEl=el; if(el) this.applyTheme(); };
@@ -717,6 +901,25 @@ class Component extends DCLogic {
     this.setState({datePreset:k,dateFrom:f,dateTo:t,page:1});
   }
   resetFilters(){ this.setState({activeFolder:'all',enabledAccounts:new Set(this.accounts.map(a=>a.id)),enabledVendors:new Set(this.vendors.map(v=>v.id)),dateFrom:'',dateTo:'',datePreset:'all',search:'',page:1}); }
+  toggleSidebarAdd(){ this.setState(st=>({sidebarAddOpen:!st.sidebarAddOpen,newSidebarCollection:''})); }
+  addSidebarCollection(){
+    const name=(this.state.newSidebarCollection||'').trim(); if(!name) return;
+    if(this.folders.some(f=>f.name.toLowerCase()===name.toLowerCase())){ this.toast('That collection already exists.'); return; }
+    const id='f-custom-'+Date.now();
+    this.folders.push({id,name,desc:'Created from the sidebar.'}); this.fmap[id]=this.folders[this.folders.length-1];
+    this.setState({newSidebarCollection:'',sidebarAddOpen:false,activeFolder:id,page:1,userMenuOpen:false},()=>this.toast('Created collection · '+name));
+  }
+  toggleSidebarVendorAdd(){ this.setState(st=>({sidebarVendorAddOpen:!st.sidebarVendorAddOpen,newSidebarVendor:''})); }
+  addSidebarVendor(){
+    const name=(this.state.newSidebarVendor||'').trim(); if(!name) return;
+    if(this.vendors.some(v=>v.name.toLowerCase()===name.toLowerCase())){ this.toast('That vendor already exists.'); return; }
+    const palette=['#6b8f9c','#b07d62','#6f8f6a','#8a7fb0','#c2a14e','#5fa08a','#a36b78','#7e8aa0','#b5895b','#74937f'];
+    const id='v-custom-'+Date.now();
+    const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    const v={id,name,color:palette[this.vendors.length%palette.length],domain:(slug||'vendor')+'.com',sender:null};
+    this.vendors.push(v); this.vmap[id]=v;
+    this.setState(st=>{ const ev=new Set(st.enabledVendors); ev.add(id); return {enabledVendors:ev,newSidebarVendor:'',sidebarVendorAddOpen:false}; },()=>this.toast('Created vendor · '+name));
+  }
   goPage(n){ const list=this.computeList(); const pc=Math.max(1,Math.ceil(list.length/this.state.pageSize)); this.setState({page:Math.max(1,Math.min(n,pc))}); }
   toggleSelect(id){ this.setState(st=>{ const x=new Set(st.selected); x.has(id)?x.delete(id):x.add(id); return {selected:x}; }); }
   selectAllPage(){ const ids=this.currentPageItems().map(i=>i.id); this.setState(st=>{ const x=new Set(st.selected); const all=ids.length>0&&ids.every(id=>x.has(id)); ids.forEach(id=>{ all?x.delete(id):x.add(id); }); return {selected:x}; }); }
@@ -789,6 +992,38 @@ class Component extends DCLogic {
     this.toast('Added '+raw+' · will scan on next sync');
   }
   connectDrive(){ this.toast('Opening Google authorization…'); }
+  ruleFieldLabel(f){ return {sender:'Sender',domain:'Email domain',filename:'Filename',subject:'Subject',account:'Source account'}[f]||f; }
+  ruleMatch(im,rule){
+    if(rule.field==='account') return im.account===rule.value;
+    const v=(rule.value||'').toLowerCase().trim(); if(!v) return false;
+    if(rule.field==='sender') return (im.sender||'').toLowerCase().indexOf(v)>=0;
+    if(rule.field==='domain'){ const d=v.replace(/^@/,''); return (im.sender||'').toLowerCase().indexOf('@'+d)>=0; }
+    if(rule.field==='filename') return im.filename.toLowerCase().indexOf(v)>=0;
+    if(rule.field==='subject') return (im.subject||'').toLowerCase().indexOf(v)>=0;
+    return false;
+  }
+  ruleMatchCount(rule){ let n=0; this.images.forEach(im=>{ if(this.ruleMatch(im,rule)) n++; }); return n; }
+  addRule(){
+    const s=this.state; const isAccount=s.ruleField==='account';
+    const value=isAccount? s.ruleAccount : (s.ruleValue||'').trim();
+    if(!isAccount && !value){ this.toast('Enter a value to match on.'); return; }
+    if(!s.ruleVendor && !s.ruleFolder){ this.toast('Pick a vendor and/or collection to assign.'); return; }
+    const rule={id:'rule-'+Date.now(),field:s.ruleField,value,vendorId:s.ruleVendor||null,folderId:s.ruleFolder||null,enabled:true};
+    this.setState(st=>({rules:st.rules.concat([rule]),ruleValue:'',ruleVendor:'',ruleFolder:''}),()=>{ const n=this.ruleMatchCount(rule); this.applyRulesNow(true,'Rule added · tagged '+n+' image'+(n===1?'':'s')); });
+  }
+  toggleRule(id){ this.setState(st=>({rules:st.rules.map(r=>r.id===id?Object.assign({},r,{enabled:!r.enabled}):r)}),()=>this.applyRulesNow(false)); }
+  deleteRule(id){ this.setState(st=>({rules:st.rules.filter(r=>r.id!==id)}),()=>this.toast('Rule removed')); }
+  applyRulesNow(announce,msg){
+    const set=this.state.rules.filter(r=>r.enabled);
+    this.images.forEach(im=>{ set.forEach(r=>{ if(r.vendorId && this.ruleMatch(im,r)) this.applyVendorTo(im,r.vendorId); }); });
+    this.setState(st=>{ const mm=Object.assign({},st.membership);
+      this.images.forEach(im=>{ let arr=null;
+        set.forEach(r=>{ if(r.folderId && this.ruleMatch(im,r)){ arr=arr||(mm[im.id]||['all']).slice(); if(arr.indexOf(r.folderId)<0) arr.push(r.folderId); } });
+        if(arr){ if(arr.indexOf('all')<0) arr.unshift('all'); mm[im.id]=arr; }
+      });
+      return {membership:mm};
+    }, ()=>{ this.toast(msg||'Rules applied to the library'); });
+  }
   setHover(id){ if(this.state.hoverId!==id) this.setState({hoverId:id}); }
   toast(msg){ clearTimeout(this._t); this.setState({toast:msg}); this._t=setTimeout(()=>this.setState({toast:null}),2400); }
 
@@ -891,6 +1126,22 @@ class Component extends DCLogic {
       };
     }
 
+    const ruleValueLabel={sender:'Sender contains',domain:'Domain',filename:'Filename contains',subject:'Subject contains',account:'Account'}[s.ruleField]||'Value';
+    const ruleValuePlaceholder={sender:'orders@vendor.com',domain:'@vendor.com',filename:'invoice',subject:'lookbook',account:''}[s.ruleField]||'';
+    const draftVal=s.ruleField==='account'?s.ruleAccount:(s.ruleValue||'').trim();
+    const draftMatches=draftVal?this.images.filter(im=>this.ruleMatch(im,{field:s.ruleField,value:draftVal})).length:0;
+    const ruleRows=s.rules.map(r=>{
+      const ven=r.vendorId?this.vmap[r.vendorId]:null; const fol=r.folderId?this.fmap[r.folderId]:null;
+      let cond; if(r.field==='account'){ const a=this.accounts.find(x=>x.id===r.value); cond='Source account is '+(a?a.name:r.value); } else cond=this.ruleFieldLabel(r.field)+' contains “'+r.value+'”';
+      return {id:r.id,cond,enabled:r.enabled,matches:this.ruleMatchCount(r),
+        hasVendor:!!ven,vName:ven?ven.name:'',vDotStyle:ven?{width:'8px',height:'8px',borderRadius:'50%',background:ven.color,flexShrink:0}:{},
+        hasFolder:!!fol,fName:fol?fol.name:'',
+        rowStyle:r.enabled?{}:{opacity:0.5},
+        onToggle:()=>this.toggleRule(r.id),onDelete:()=>this.deleteRule(r.id),
+        trackStyle:{position:'relative',width:'40px',height:'23px',borderRadius:'999px',border:'none',cursor:'pointer',padding:0,transition:'background .15s',background:r.enabled?'var(--accent)':'var(--line-strong)'},
+        knobStyle:{position:'absolute',top:'2px',left:'2px',width:'19px',height:'19px',borderRadius:'50%',background:'#fff',boxShadow:'0 1px 2px rgba(0,0,0,.3)',transition:'transform .15s',transform:r.enabled?'translateX(17px)':'translateX(0)'}};
+    });
+
     const editOpen=s.editMode!=null;
     let edit=null, editIsSingle=false, editIsBulk=false, editTitle='', editSubtitle='';
     if(editOpen){
@@ -940,6 +1191,8 @@ class Component extends DCLogic {
       userName:'Avery Cole', userInitial:'A', userMenuOpen:s.userMenuOpen, onToggleUserMenu:()=>this.setState(st=>({userMenuOpen:!st.userMenuOpen})),
       onGotoSenders:()=>this.setState({tab:'senders',userMenuOpen:false}), onLogout:()=>this.setState({screen:'login',userMenuOpen:false}),
       folders,gmailAccounts,driveAccounts,vendors,presets,
+      sidebarAddOpen:s.sidebarAddOpen,sidebarAddClosed:!s.sidebarAddOpen,newSidebarCollection:s.newSidebarCollection,onToggleSidebarAdd:()=>this.toggleSidebarAdd(),onNewSidebarCollection:(e)=>this.setState({newSidebarCollection:e.target.value}),onAddSidebarCollection:()=>this.addSidebarCollection(),onSidebarAddKey:(e)=>{ if(e.key==='Enter') this.addSidebarCollection(); else if(e.key==='Escape') this.setState({sidebarAddOpen:false,newSidebarCollection:''}); },
+      sidebarVendorAddOpen:s.sidebarVendorAddOpen,sidebarVendorAddClosed:!s.sidebarVendorAddOpen,newSidebarVendor:s.newSidebarVendor,onToggleSidebarVendorAdd:()=>this.toggleSidebarVendorAdd(),onNewSidebarVendor:(e)=>this.setState({newSidebarVendor:e.target.value}),onAddSidebarVendor:()=>this.addSidebarVendor(),onSidebarVendorAddKey:(e)=>{ if(e.key==='Enter') this.addSidebarVendor(); else if(e.key==='Escape') this.setState({sidebarVendorAddOpen:false,newSidebarVendor:''}); },
       dateFrom:s.dateFrom,onDateFrom:(e)=>this.setState({dateFrom:e.target.value,datePreset:'custom',page:1}),
       dateTo:s.dateTo,onDateTo:(e)=>this.setState({dateTo:e.target.value,datePreset:'custom',page:1}),
       filtersActive,onResetFilters:()=>this.resetFilters(),
@@ -954,6 +1207,16 @@ class Component extends DCLogic {
       sTotal:s.senders.length,sIncluded,sOff:s.senders.length-sIncluded,
       newSender:s.newSender,onNewSender:(e)=>this.setState({newSender:e.target.value}),onAddKey:(e)=>{ if(e.key==='Enter') this.addSender(); },onAddSender:()=>this.addSender(),
       senders:sList,vendorOptions:this.vendors.map(v=>({id:v.id,name:v.name})),
+      includedSenders:sList.filter(x=>x.included),excludedSenders:sList.filter(x=>!x.included),hasIncluded:sIncluded>0,noIncluded:sIncluded===0,hasExcluded:(s.senders.length-sIncluded)>0,noExcluded:(s.senders.length-sIncluded)===0,
+      isRules:s.tab==='rules',rulesActive:s.tab==='rules',setTabRules:()=>this.setState({tab:'rules',userMenuOpen:false}),
+      ruleField:s.ruleField,onRuleField:(e)=>this.setState({ruleField:e.target.value}),ruleIsAccount:s.ruleField==='account',ruleIsText:s.ruleField!=='account',
+      ruleValue:s.ruleValue,onRuleValue:(e)=>this.setState({ruleValue:e.target.value}),onRuleValueKey:(e)=>{ if(e.key==='Enter') this.addRule(); },
+      ruleAccount:s.ruleAccount,onRuleAccount:(e)=>this.setState({ruleAccount:e.target.value}),
+      ruleVendor:s.ruleVendor,onRuleVendor:(e)=>this.setState({ruleVendor:e.target.value}),
+      ruleFolder:s.ruleFolder,onRuleFolder:(e)=>this.setState({ruleFolder:e.target.value}),
+      onAddRule:()=>this.addRule(),onApplyRules:()=>this.applyRulesNow(true),
+      ruleValueLabel,ruleValuePlaceholder,draftMatches,ruleRows,ruleCount:s.rules.length,ruleEnabledCount:s.rules.filter(r=>r.enabled).length,hasRules:s.rules.length>0,noRules:s.rules.length===0,
+      folderOptionsNoAll:this.folders.filter(f=>f.id!=='all').map(f=>({id:f.id,name:f.name})),accountOptions:this.accounts.map(a=>({id:a.id,name:a.name})),
       driveRows,dTotal:s.driveSources.length,dIncluded,
       newDrive:s.newDrive,onNewDrive:(e)=>this.setState({newDrive:e.target.value}),onAddDrive:()=>this.addDrive(),onAddDriveKey:(e)=>{ if(e.key==='Enter') this.addDrive(); },onConnectDrive:()=>this.connectDrive(),
       lightboxOpen,lb,

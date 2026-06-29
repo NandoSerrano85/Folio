@@ -7,6 +7,7 @@ import { state, setState, subscribe, toast } from "./state.js";
 import * as api from "./api.js";
 import { mountLibrary, loadReference } from "./gallery.js";
 import { mountSenders } from "./senders.js";
+import { mountRules } from "./rules.js";
 import "./lightbox.js"; // self-registers its store subscription + key handlers
 import "./edit.js"; // self-registers the Edit modal (single + bulk)
 
@@ -251,15 +252,17 @@ function buildHeader() {
   // Brand + tabs
   const tabLibrary = el("button", { class: "tab", text: "Library", onClick: () => setState({ tab: "library", userMenuOpen: false }) });
   const tabSenders = el("button", { class: "tab", text: "Senders", onClick: () => setState({ tab: "senders", userMenuOpen: false }) });
+  const tabRules = el("button", { class: "tab", text: "Rules", onClick: () => setState({ tab: "rules", userMenuOpen: false }) });
   refs.tabLibrary = tabLibrary;
   refs.tabSenders = tabSenders;
+  refs.tabRules = tabRules;
 
   const brandGroup = el("div", { class: "brand-group" }, [
     el("div", { class: "brand" }, [
       el("div", { class: "brand-mark", text: "F" }),
       el("span", { class: "brand-word", text: "Folio" }),
     ]),
-    el("nav", { class: "tabs" }, [tabLibrary, tabSenders]),
+    el("nav", { class: "tabs" }, [tabLibrary, tabSenders, tabRules]),
   ]);
 
   // Search
@@ -315,12 +318,18 @@ function syncTab() {
   if (refs.tabLibrary) {
     refs.tabLibrary.classList.toggle("active", state.tab === "library");
     refs.tabSenders.classList.toggle("active", state.tab === "senders");
+    refs.tabRules.classList.toggle("active", state.tab === "rules");
     refreshUnderline(refs.tabLibrary, state.tab === "library");
     refreshUnderline(refs.tabSenders, state.tab === "senders");
+    refreshUnderline(refs.tabRules, state.tab === "rules");
   }
   // Swap content
   clear(refs.contentEl);
-  refs.contentEl.appendChild(state.tab === "senders" ? mountSenders() : mountLibrary());
+  let view;
+  if (state.tab === "senders") view = mountSenders();
+  else if (state.tab === "rules") view = mountRules();
+  else view = mountLibrary();
+  refs.contentEl.appendChild(view);
 }
 
 function refreshUnderline(btn, on) {

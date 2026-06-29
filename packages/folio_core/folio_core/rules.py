@@ -1,36 +1,40 @@
-"""Collection rules — auto-filing images into folders by ANDed conditions.
+"""Collection rules — auto-tagging images by ONE condition + up to two actions.
 
-A *rule* targets one folder (``folder_id``) and carries a list of
-``{field, op, value}`` *conditions* that are ANDed together: an image is
-auto-added to the folder when it matches ALL conditions. An image may match
-many rules and so be filed into many folders; membership is idempotent via the
-``folder_images`` primary key.
+A *rule* matches images by a single condition and, for every matching image,
+applies up to two actions: assign a vendor to the image's sources and/or add the
+image to a folder. A rule must set at least ONE action.
 
-Supported conditions (field, op, value):
+Shape: ``{field, value?, account_id?, vendor_id?, folder_id?, enabled}``.
 
-  * ``vendor`` / ``is`` / ``int``        -> some source has ``vendor_id == value``
-  * ``account`` / ``is`` / ``int``       -> some source has ``account_id == value``
-  * ``source_type`` / ``is`` / ``str``   -> some source has ``source_type == value``
-                                            (``'drive'`` | ``'email'``)
-  * ``folder_path`` / ``contains`` / ``str`` -> some source's
-                                            ``drive_folder_path`` ILIKE %value%
-  * ``filename`` / ``contains`` / ``str``    -> ``images.original_filename``
-                                            ILIKE %value%
-  * ``date`` / ``within_days`` / ``int`` -> ``images.source_date`` within the
-                                            last N days
+The ``field`` selects the condition (all matches are case-insensitive
+substring matches via ILIKE, except ``account`` which is an id equality):
+
+  * ``sender``   -> EXISTS(image_sources s: ``s.email_sender`` ILIKE %value%)
+  * ``domain``   -> strip a leading ``'@'`` from value, then
+                    EXISTS(s.email_sender ILIKE %@<domain>%)
+  * ``subject``  -> EXISTS(s.email_subject ILIKE %value%)
+  * ``filename`` -> ``images.original_filename`` ILIKE %value%
+  * ``account``  -> EXISTS(s.account_id == account_id)  (uses the ``account_id``
+                    column, NOT ``value``)
 
 Every value is bound as a parameter — NEVER string-interpolated into SQL. ILIKE
 patterns escape ``%`` and ``_`` (and the escape char) in the user value and then
-wrap it with ``%...%``. An EMPTY conditions list matches NOTHING: such a rule is
-skipped, never applied (it must not file the entire library).
+wrap it with ``%...%``. A rule with no usable condition, or with no action, is
+skipped — never applied.
+
+Actions, per matching image:
+
+  * ``vendor_id`` -> ``UPDATE image_sources SET vendor_id=:vid`` for every source
+    of every matching image (overwrites the existing vendor, mirroring the
+    design's ``applyVendorTo``). ``'vendored'`` = rows updated.
+  * ``folder_id`` -> ``INSERT INTO folder_images(folder_id, image_id, added_at)
+    SELECT :fid, i.id, now() ... ON CONFLICT DO NOTHING RETURNING image_id``.
+    ``'filed'`` = number of rows actually inserted.
 """
 
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import Any
-
-from sqlalchemy import and_, exists, func, literal, select
+from sqlalchemy import and_, exists, func, literal, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
@@ -41,43 +45,22 @@ from folio_core.models import (
     FolderImage,
     Image,
     ImageSource,
-    SourceTypeEnum,
 )
 
 logger = get_logger("folio_core.rules")
 
 __all__ = [
     "SUPPORTED_FIELDS",
-    "SUPPORTED_OPS",
-    "FIELD_SPECS",
-    "validate_conditions",
-    "summarize_conditions",
+    "TEXT_FIELDS",
+    "validate_rule",
+    "match_count",
     "apply_collection_rules",
 ]
 
-
-# --------------------------------------------------------------------------- #
-# Supported field/op contract
-# --------------------------------------------------------------------------- #
-# Per field: the single allowed op, the expected python value type, and (for
-# source_type) the closed set of allowed string values.
-FIELD_SPECS: dict[str, dict[str, Any]] = {
-    "vendor": {"op": "is", "type": int},
-    "account": {"op": "is", "type": int},
-    "source_type": {
-        "op": "is",
-        "type": str,
-        "choices": {e.value for e in SourceTypeEnum},
-    },
-    "folder_path": {"op": "contains", "type": str},
-    "filename": {"op": "contains", "type": str},
-    "date": {"op": "within_days", "type": int},
-}
-
-SUPPORTED_FIELDS: frozenset[str] = frozenset(FIELD_SPECS)
-SUPPORTED_OPS: frozenset[str] = frozenset(
-    spec["op"] for spec in FIELD_SPECS.values()
-)
+# The closed set of condition fields. ``account`` uses the ``account_id``
+# column; every other field uses the free-text ``value``.
+TEXT_FIELDS: frozenset[str] = frozenset({"sender", "domain", "filename", "subject"})
+SUPPORTED_FIELDS: frozenset[str] = TEXT_FIELDS | {"account"}
 
 # Backslash is the ILIKE escape character below.
 _LIKE_ESCAPE = "\\"
@@ -96,7 +79,7 @@ def _escape_like(value: str) -> str:
     )
 
 
-def _is_int(value: Any) -> bool:
+def _is_int(value: object) -> bool:
     # bool is a subclass of int — reject it for numeric fields.
     return isinstance(value, int) and not isinstance(value, bool)
 
@@ -104,90 +87,44 @@ def _is_int(value: Any) -> bool:
 # --------------------------------------------------------------------------- #
 # Validation
 # --------------------------------------------------------------------------- #
-def validate_conditions(conditions: Any) -> list[dict[str, Any]]:
-    """Validate a list of ``{field, op, value}`` condition dicts.
+def validate_rule(
+    field: object,
+    value: object,
+    account_id: object,
+    vendor_id: object,
+    folder_id: object,
+) -> None:
+    """Validate a v3 rule's condition + actions, raising :class:`ValueError`.
 
-    Raises :class:`ValueError` on a non-list, a malformed entry, an unknown
-    field or op, or a value of the wrong type / outside the allowed set. Returns
-    the conditions list unchanged on success. An empty list is valid (it simply
-    matches nothing when applied).
+    Rules:
+
+      * ``field`` must be one of :data:`SUPPORTED_FIELDS`.
+      * For a text field (sender/domain/filename/subject) ``value`` is required
+        and non-empty.
+      * For ``account``, ``account_id`` is required (an int) and ``value`` must
+        be null.
+      * At least one action (``vendor_id`` or ``folder_id``) must be set.
     """
-    if not isinstance(conditions, list):
-        raise ValueError("conditions must be a list")
+    if field not in SUPPORTED_FIELDS:
+        raise ValueError(
+            f"unknown field {field!r}; supported: {sorted(SUPPORTED_FIELDS)}"
+        )
 
-    for idx, cond in enumerate(conditions):
-        if not isinstance(cond, dict):
-            raise ValueError(f"condition[{idx}] must be an object")
-        field = cond.get("field")
-        op = cond.get("op")
-        value = cond.get("value")
-
-        if field not in FIELD_SPECS:
+    if field == "account":
+        if not _is_int(account_id):
+            raise ValueError("field 'account' requires an integer account_id")
+        if value is not None and value != "":
+            raise ValueError("field 'account' must not carry a value")
+    else:
+        if not isinstance(value, str) or not value.strip():
             raise ValueError(
-                f"condition[{idx}] unknown field {field!r}; "
-                f"supported: {sorted(SUPPORTED_FIELDS)}"
-            )
-        spec = FIELD_SPECS[field]
-        if op != spec["op"]:
-            raise ValueError(
-                f"condition[{idx}] field {field!r} only supports op "
-                f"{spec['op']!r}, got {op!r}"
+                f"field {field!r} requires a non-empty string value"
             )
 
-        expected = spec["type"]
-        if expected is int:
-            if not _is_int(value):
-                raise ValueError(
-                    f"condition[{idx}] field {field!r} requires an integer value"
-                )
-            if field == "date" and value < 1:
-                raise ValueError(
-                    f"condition[{idx}] field 'date' requires a positive "
-                    f"number of days"
-                )
-        elif expected is str:
-            if not isinstance(value, str) or not value:
-                raise ValueError(
-                    f"condition[{idx}] field {field!r} requires a non-empty "
-                    f"string value"
-                )
-            choices = spec.get("choices")
-            if choices is not None and value not in choices:
-                raise ValueError(
-                    f"condition[{idx}] field {field!r} value must be one of "
-                    f"{sorted(choices)}, got {value!r}"
-                )
-
-    return conditions
-
-
-# --------------------------------------------------------------------------- #
-# Human-readable summary (structural — can't resolve vendor/account names)
-# --------------------------------------------------------------------------- #
-def _summarize_one(cond: dict[str, Any]) -> str:
-    field = cond.get("field")
-    value = cond.get("value")
-    if field in ("vendor", "account"):
-        return f"{field} is #{value}"
-    if field == "source_type":
-        return f"source_type is {value}"
-    if field in ("folder_path", "filename"):
-        return f"{field} contains '{value}'"
-    if field == "date":
-        return f"date within last {value} days"
-    return f"{field} {cond.get('op')} {value!r}"
-
-
-def summarize_conditions(conditions: list[dict[str, Any]]) -> str:
-    """Return a structural human label for a conditions list.
-
-    Names cannot be resolved here (no session), so vendor/account render by id,
-    e.g. ``"vendor is #3 AND folder_path contains 'Lookbook'"``. An empty list
-    renders as ``"(no conditions)"``.
-    """
-    if not conditions:
-        return "(no conditions)"
-    return " AND ".join(_summarize_one(c) for c in conditions)
+    has_vendor = vendor_id is not None
+    has_folder = folder_id is not None
+    if not has_vendor and not has_folder:
+        raise ValueError("a rule must set at least one action (vendor or folder)")
 
 
 # --------------------------------------------------------------------------- #
@@ -195,54 +132,59 @@ def summarize_conditions(conditions: list[dict[str, Any]]) -> str:
 # --------------------------------------------------------------------------- #
 def _source_exists(*criteria: ColumnElement[bool]) -> ColumnElement[bool]:
     """EXISTS over the image's sources, correlated on ``image_id``."""
-    return exists().where(
-        and_(ImageSource.image_id == Image.id, *criteria)
-    )
+    return exists().where(and_(ImageSource.image_id == Image.id, *criteria))
 
 
-def _condition_clause(cond: dict[str, Any]) -> ColumnElement[bool]:
-    """Build a single bound-param SQLAlchemy boolean clause against ``Image``."""
-    field = cond["field"]
-    value = cond["value"]
-
-    if field == "vendor":
-        return _source_exists(ImageSource.vendor_id == value)
-    if field == "account":
-        return _source_exists(ImageSource.account_id == value)
-    if field == "source_type":
-        return _source_exists(ImageSource.source_type == value)
-    if field == "folder_path":
-        pattern = f"%{_escape_like(value)}%"
-        return _source_exists(
-            ImageSource.drive_folder_path.ilike(pattern, escape=_LIKE_ESCAPE)
-        )
-    if field == "filename":
-        pattern = f"%{_escape_like(value)}%"
-        return Image.original_filename.ilike(pattern, escape=_LIKE_ESCAPE)
-    if field == "date":
-        # timedelta is bound as a parameter (rendered as an interval) — the
-        # day count is never string-formatted into the SQL text.
-        return Image.source_date >= func.now() - timedelta(days=value)
-    raise ValueError(f"unsupported field {field!r}")  # pragma: no cover
+def _ilike_source(column: ColumnElement, raw: str) -> ColumnElement[bool]:
+    """EXISTS(source where ``column`` ILIKE %raw%) with escaped, bound value."""
+    pattern = f"%{_escape_like(raw)}%"
+    return _source_exists(column.ilike(pattern, escape=_LIKE_ESCAPE))
 
 
-def _match_clause(conditions: list[dict[str, Any]]) -> ColumnElement[bool] | None:
-    """AND every condition into one whereclause, or None if empty.
+def _match_clause(
+    field: str, value: str | None, account_id: int | None
+) -> ColumnElement[bool] | None:
+    """Build the bound-param boolean match clause for one rule condition.
 
-    A None return signals "matches nothing" to the caller (an empty rule must
-    not file the whole library).
+    Returns ``None`` when the condition is unusable (unknown field, missing
+    text value, or missing account id) — the caller treats ``None`` as "matches
+    nothing" and skips the rule rather than over-matching.
     """
-    if not conditions:
+    if field == "account":
+        if account_id is None:
+            return None
+        return _source_exists(ImageSource.account_id == account_id)
+
+    if field not in TEXT_FIELDS or not isinstance(value, str) or not value.strip():
         return None
-    try:
-        clauses = [_condition_clause(c) for c in conditions]
-    except (KeyError, ValueError, TypeError):
-        # Conditions are validated on every write, so a malformed entry here can
-        # only come from a hand-edited/legacy DB row. Make the WHOLE rule match
-        # nothing rather than 500-ing apply/list or silently over-matching.
-        logger.warning("rules.invalid_conditions skipped conditions=%s", conditions)
-        return None
-    return and_(*clauses)
+    text = value.strip()
+
+    if field == "sender":
+        return _ilike_source(ImageSource.email_sender, text)
+    if field == "domain":
+        domain = text[1:] if text.startswith("@") else text
+        return _ilike_source(ImageSource.email_sender, f"@{domain}")
+    if field == "subject":
+        return _ilike_source(ImageSource.email_subject, text)
+    if field == "filename":
+        pattern = f"%{_escape_like(text)}%"
+        return Image.original_filename.ilike(pattern, escape=_LIKE_ESCAPE)
+    return None  # pragma: no cover
+
+
+# --------------------------------------------------------------------------- #
+# Count
+# --------------------------------------------------------------------------- #
+def match_count(session: Session, rule: CollectionRule) -> int:
+    """Count the images matching ``rule``'s condition.
+
+    Returns 0 for a rule whose condition is unusable (it matches nothing).
+    """
+    clause = _match_clause(rule.field, rule.value, rule.account_id)
+    if clause is None:
+        return 0
+    stmt = select(func.count()).select_from(Image).where(clause)
+    return int(session.execute(stmt).scalar_one())
 
 
 # --------------------------------------------------------------------------- #
@@ -250,16 +192,20 @@ def _match_clause(conditions: list[dict[str, Any]]) -> ColumnElement[bool] | Non
 # --------------------------------------------------------------------------- #
 def apply_collection_rules(
     session: Session, *, rule_id: int | None = None
-) -> dict[int, int]:
-    """Apply enabled collection rules, auto-filing matching images.
+) -> dict[int, dict]:
+    """Apply enabled collection rules, auto-tagging matching images.
 
-    For each enabled rule (or only ``rule_id`` when given) run ONE
-    ``INSERT INTO folder_images(folder_id, image_id, added_at)
-    SELECT :folder_id, i.id, now() FROM images i WHERE <conds>
-    ON CONFLICT (folder_id, image_id) DO NOTHING``. Rules with an empty
-    conditions list are skipped (they match nothing). Returns a mapping of
-    ``{rule_id: rows_added}`` for every rule that was actually run (skipped /
-    empty-condition rules are omitted).
+    For each enabled rule (or only ``rule_id`` when given) build the match
+    whereclause (bound params, ``%``/``_`` escaped) and run its actions:
+
+      * ``vendor_id`` -> ``UPDATE image_sources SET vendor_id=:vid WHERE image_id
+        IN (SELECT i.id FROM images i WHERE <match>)`` — overwrites the vendor on
+        every source of every matching image. ``'vendored'`` = rows updated.
+      * ``folder_id`` -> ``INSERT INTO folder_images SELECT ... ON CONFLICT DO
+        NOTHING RETURNING image_id`` — ``'filed'`` = rows actually inserted.
+
+    A rule with no usable condition, or with no action, is skipped. Returns
+    ``{rule_id: {'vendored': X, 'filed': Y}}`` for every rule actually run.
 
     Does not commit — the caller owns the transaction.
     """
@@ -267,29 +213,47 @@ def apply_collection_rules(
     if rule_id is not None:
         stmt = stmt.where(CollectionRule.id == rule_id)
 
-    added: dict[int, int] = {}
+    results: dict[int, dict] = {}
     for rule in session.execute(stmt).scalars().all():
-        conditions = rule.conditions or []
-        clause = _match_clause(conditions)
+        if rule.vendor_id is None and rule.folder_id is None:
+            # No action — nothing to apply.
+            continue
+        clause = _match_clause(rule.field, rule.value, rule.account_id)
         if clause is None:
-            # Empty conditions match nothing — never file the whole library.
+            # Unusable condition — never tag the whole library.
             continue
 
-        select_stmt = select(
-            literal(rule.folder_id),
-            Image.id,
-            func.now(),
-        ).where(clause)
+        counts = {"vendored": 0, "filed": 0}
 
-        insert_stmt = (
-            pg_insert(FolderImage)
-            .from_select(["folder_id", "image_id", "added_at"], select_stmt)
-            .on_conflict_do_nothing(index_elements=["folder_id", "image_id"])
-            .returning(FolderImage.image_id)
-        )
-        # RETURNING yields exactly the rows actually inserted (ON CONFLICT skips
-        # are not returned), giving a reliable count — rowcount is -1/unreliable
-        # for INSERT...SELECT...ON CONFLICT under psycopg3.
-        added[rule.id] = len(session.execute(insert_stmt).fetchall())
+        if rule.vendor_id is not None:
+            matching_image_ids = select(Image.id).where(clause)
+            upd = (
+                update(ImageSource)
+                .where(ImageSource.image_id.in_(matching_image_ids))
+                .values(vendor_id=rule.vendor_id)
+                .returning(ImageSource.image_id)
+            )
+            # Count DISTINCT images tagged, not source rows: an image with
+            # several sources would otherwise inflate the user-facing count.
+            rows = session.execute(upd).fetchall()
+            counts["vendored"] = len({r[0] for r in rows})
 
-    return added
+        if rule.folder_id is not None:
+            select_stmt = select(
+                literal(rule.folder_id),
+                Image.id,
+                func.now(),
+            ).where(clause)
+            insert_stmt = (
+                pg_insert(FolderImage)
+                .from_select(["folder_id", "image_id", "added_at"], select_stmt)
+                .on_conflict_do_nothing(index_elements=["folder_id", "image_id"])
+                .returning(FolderImage.image_id)
+            )
+            # RETURNING yields exactly the rows actually inserted (ON CONFLICT
+            # skips are not returned), giving a reliable count.
+            counts["filed"] = len(session.execute(insert_stmt).fetchall())
+
+        results[rule.id] = counts
+
+    return results

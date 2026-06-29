@@ -154,36 +154,39 @@ class FolderOut(BaseModel):
 # --------------------------------------------------------------------------- #
 # Collection rules (auto-filing)
 # --------------------------------------------------------------------------- #
-class CollectionRuleCondition(BaseModel):
-    """One ANDed condition. Field/op/value are validated server-side against
-    ``folio_core.rules.validate_conditions`` before persisting."""
-
-    field: str = Field(min_length=1, max_length=64)
-    op: str = Field(min_length=1, max_length=32)
-    value: str | int
-
-
 class CollectionRuleCreate(BaseModel):
-    name: str | None = Field(default=None, max_length=256)
-    folder_id: int
+    """Create a v3 rule: ONE condition (field/value or account) + up to two
+    actions (vendor and/or folder). Validated server-side via
+    ``folio_core.rules.validate_rule`` before persisting."""
+
+    field: str = Field(min_length=1, max_length=32)
+    value: str | None = Field(default=None, max_length=512)
+    account_id: int | None = None
+    vendor_id: int | None = None
+    folder_id: int | None = None
     enabled: bool = True
-    conditions: list[CollectionRuleCondition] = Field(default_factory=list)
 
 
 class CollectionRuleUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=256)
+    field: str | None = Field(default=None, min_length=1, max_length=32)
+    value: str | None = Field(default=None, max_length=512)
+    account_id: int | None = None
+    vendor_id: int | None = None
     folder_id: int | None = None
     enabled: bool | None = None
-    conditions: list[CollectionRuleCondition] | None = None
 
 
 class CollectionRuleOut(BaseModel):
     id: int
-    name: str | None = None
-    folder_id: int
+    field: str
+    value: str | None = None
+    account_id: int | None = None
+    account_name: str | None = None
+    vendor_id: int | None = None
+    vendor_name: str | None = None
+    folder_id: int | None = None
     folder_name: str | None = None
     enabled: bool = True
-    conditions: list[CollectionRuleCondition] = Field(default_factory=list)
     match_count: int | None = None
 
 
@@ -332,7 +335,6 @@ __all__ = [
     "FolderImagesRemove",
     "FolderImagesRemoveResponse",
     "FolderOut",
-    "CollectionRuleCondition",
     "CollectionRuleCreate",
     "CollectionRuleUpdate",
     "CollectionRuleOut",

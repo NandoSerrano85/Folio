@@ -346,31 +346,41 @@ class FolderImage(Base):
 
 
 class CollectionRule(Base):
-    """An auto-filing rule: a target folder + ANDed conditions.
+    """An auto-tagging rule: ONE condition + up to two actions.
 
-    Each enabled rule auto-adds every image matching ALL of its ``conditions``
-    to ``folder_id``. ``conditions`` is a JSONB list of ``{field, op, value}``
-    dicts (see ``folio_core.rules`` for the supported fields/ops and the
-    SQLAlchemy match clause). An empty conditions list matches NOTHING — it is
-    never applied (it must not file the entire library). An image can match
-    many rules and so be filed into many folders; membership is idempotent via
+    A rule matches images by a single ``field``/``value`` condition and, for
+    every matching image, applies up to two actions: assign ``vendor_id`` to the
+    image's sources and/or add the image to ``folder_id``. At least one action
+    must be set. See ``folio_core.rules`` for the field semantics and the
+    bound-param SQLAlchemy match clause.
+
+    ``field`` is one of ``sender``, ``domain``, ``filename``, ``subject``,
+    ``account``. For the text fields (sender/domain/filename/subject) ``value``
+    is required; for ``account`` the condition uses ``account_id`` and ``value``
+    is null. An image can match many rules; folder membership is idempotent via
     the ``folder_images`` primary key.
     """
 
     __tablename__ = "collection_rules"
     __table_args__ = (
         Index("ix_collection_rules_folder_id", "folder_id"),
+        Index("ix_collection_rules_account_id", "account_id"),
+        Index("ix_collection_rules_vendor_id", "vendor_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    folder_id: Mapped[int] = mapped_column(
-        ForeignKey("folders.id", ondelete="CASCADE"), nullable=False
+    field: Mapped[str] = mapped_column(String(32), nullable=False)
+    value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), nullable=True
+    )
+    vendor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True
+    )
+    folder_id: Mapped[int | None] = mapped_column(
+        ForeignKey("folders.id", ondelete="CASCADE"), nullable=True
     )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    conditions: Mapped[list] = mapped_column(
-        JSONB, nullable=False, default=list
-    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -381,7 +391,7 @@ class CollectionRule(Base):
         nullable=False,
     )
 
-    folder: Mapped["Folder"] = relationship(back_populates="rules")
+    folder: Mapped["Folder | None"] = relationship(back_populates="rules")
 
 
 class SyncState(Base):

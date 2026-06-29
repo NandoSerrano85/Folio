@@ -147,6 +147,52 @@ const SENDERS = [];
   SENDERS.push({ id: id++, account_id: 1, address: "newsletter@designweekly.com", domain: "designweekly.com", display_name: "Design Weekly", vendor_id: null, enabled: false, discovered_count: countFor("newsletter@designweekly.com"), last_seen_at: null });
 })();
 
+// ------------------------------------------------------------------- rules -- //
+// v3 automation rules: ONE condition (sender/domain/filename/subject/account)
+// that assigns a vendor and/or files into a collection. Mirrors the backend.
+const RULES = [
+  { id: 1, field: "domain", value: "@northwind-supply.com", account_id: null, vendor_id: 1, folder_id: 1, enabled: true },
+  { id: 2, field: "filename", value: "receipt", account_id: null, vendor_id: null, folder_id: 2, enabled: true },
+  { id: 3, field: "subject", value: "lookbook", account_id: null, vendor_id: 2, folder_id: 4, enabled: true },
+];
+function ruleMatch(im, r) {
+  if (r.field === "account") return im.accountId === r.account_id;
+  const v = (r.value || "").toLowerCase().trim();
+  if (!v) return false;
+  if (r.field === "sender") return (im.sender || "").toLowerCase().includes(v);
+  if (r.field === "domain") return (im.sender || "").toLowerCase().includes("@" + v.replace(/^@/, ""));
+  if (r.field === "filename") return (im.filename || "").toLowerCase().includes(v);
+  if (r.field === "subject") return (im.subject || "").toLowerCase().includes(v);
+  return false;
+}
+function ruleMatchCount(r) { return IMAGES.reduce((n, im) => n + (ruleMatch(im, r) ? 1 : 0), 0); }
+function ruleOut(r) {
+  const v = r.vendor_id ? VMAP[r.vendor_id] : null;
+  const f = r.folder_id ? FOLDERS.find((x) => x.id === r.folder_id) : null;
+  const a = r.account_id ? AMAP[r.account_id] : null;
+  return {
+    id: r.id, field: r.field, value: r.value, enabled: r.enabled,
+    account_id: r.account_id, account_name: a ? a.email : null,
+    vendor_id: r.vendor_id, vendor_name: v ? v.name : null,
+    folder_id: r.folder_id, folder_name: f ? f.name : null,
+    match_count: ruleMatchCount(r),
+  };
+}
+function applyOneRule(r) {
+  let vendored = 0, filed = 0;
+  if (!r.enabled) return { vendored, filed };
+  const matched = IMAGES.filter((im) => ruleMatch(im, r));
+  if (r.vendor_id) {
+    const v = VMAP[r.vendor_id];
+    matched.forEach((im) => { im.vendorId = r.vendor_id; im.vendorName = v ? v.name : im.vendorName; });
+    vendored = matched.length;
+  }
+  if (r.folder_id) {
+    matched.forEach((im) => { const m = MEMBERSHIP[im.id]; if (m && !m.has(r.folder_id)) { m.add(r.folder_id); filed++; } });
+  }
+  return { vendored, filed };
+}
+
 // ----------------------------------------------------------------- mapping -- //
 function listItem(im) {
   return {
@@ -252,6 +298,39 @@ export const api = {
     if (patch.enabled !== undefined) s.enabled = patch.enabled;
     if (patch.vendor_id !== undefined) s.vendor_id = patch.vendor_id;
     return delay({ ...s });
+  },
+
+  async collectionRules() { return delay(RULES.map(ruleOut)); },
+  async createCollectionRule(payload) {
+    const id = Math.max(0, ...RULES.map((r) => r.id)) + 1;
+    const r = {
+      id, field: payload.field, value: payload.value ?? null,
+      account_id: payload.field === "account" ? (payload.account_id ?? null) : null,
+      vendor_id: payload.vendor_id ?? null, folder_id: payload.folder_id ?? null,
+      enabled: payload.enabled !== false,
+    };
+    RULES.push(r); applyOneRule(r);
+    return delay(ruleOut(r));
+  },
+  async updateCollectionRule(id, patch) {
+    const r = RULES.find((x) => x.id === parseInt(id, 10));
+    if (!r) throw new Error("not found");
+    Object.assign(r, patch);
+    if (patch.enabled) applyOneRule(r);
+    return delay(ruleOut(r));
+  },
+  async deleteCollectionRule(id) {
+    const i = RULES.findIndex((x) => x.id === parseInt(id, 10));
+    if (i >= 0) RULES.splice(i, 1);
+    return delay({ status: "ok" });
+  },
+  async applyCollectionRules() {
+    const applied = {}; let total_filed = 0, total_vendored = 0;
+    RULES.filter((r) => r.enabled).forEach((r) => {
+      const c = applyOneRule(r); applied[r.id] = c;
+      total_filed += c.filed; total_vendored += c.vendored;
+    });
+    return delay({ applied, total_filed, total_vendored });
   },
 
   async vendors() { return delay(VENDORS.map(({ sender, ...v }) => v)); },

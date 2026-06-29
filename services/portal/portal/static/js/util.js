@@ -112,6 +112,11 @@ export const icons = {
   arrowLeft: (size = 17) => svg([{ t: "polyline", points: "10,3 5,8 10,13" }], { size, stroke: 1.8 }),
   arrowRight: (size = 17) => svg([{ t: "polyline", points: "6,3 11,8 6,13" }], { size, stroke: 1.8 }),
   pencil: (size = 14) => svg([{ t: "path", d: "M11.4 2.6l2 2L6 12l-2.7.7L4 10z" }], { size, stroke: 1.6 }),
+  trash: (size = 15) => svg([
+    { t: "polyline", points: "2.5,4 13.5,4" },
+    { t: "path", d: "M6 4V2.7h4V4" },
+    { t: "path", d: "M4.2 4l.6 9.2h6.4l.6-9.2" },
+  ], { size, stroke: 1.6 }),
 };
 
 // ----------------------------------------------------------------- dates -- //

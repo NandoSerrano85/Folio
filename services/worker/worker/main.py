@@ -383,11 +383,26 @@ def _run_apply_collection_rules() -> None:
     from folio_core.rules import apply_collection_rules
 
     with session_scope() as session:
-        added = apply_collection_rules(session)
-    total = sum(added.values())
-    for rule_id, count in added.items():
-        logger.info("apply-rules.rule rule_id=%s added=%d", rule_id, count)
-    logger.info("apply-rules.done rules=%d total_added=%d", len(added), total)
+        results = apply_collection_rules(session)
+    total_vendored = 0
+    total_filed = 0
+    for rule_id, counts in results.items():
+        vendored = counts.get("vendored", 0)
+        filed = counts.get("filed", 0)
+        total_vendored += vendored
+        total_filed += filed
+        logger.info(
+            "apply-rules.rule rule_id=%s vendored=%d filed=%d",
+            rule_id,
+            vendored,
+            filed,
+        )
+    logger.info(
+        "apply-rules.done rules=%d total_vendored=%d total_filed=%d",
+        len(results),
+        total_vendored,
+        total_filed,
+    )
 
 
 def _run_auto_derive_vendors() -> None:
