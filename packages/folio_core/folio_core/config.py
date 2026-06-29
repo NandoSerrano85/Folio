@@ -169,6 +169,33 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ #
+    # Vendor derivation (worker derive-vendors)
+    # ------------------------------------------------------------------ #
+    vendor_derive_strategy: str = Field(
+        default="frequent",
+        description=(
+            "How to pick a vendor name from a Drive folder path "
+            "('A/B/C'): 'frequent' (most common token across the run), "
+            "'parent' (the deepest folder), or 'top' (the first folder)."
+        ),
+    )
+    vendor_derive_stoplist: str = Field(
+        default="",
+        description=(
+            "Comma/space-separated generic folder names to ignore when "
+            "deriving a vendor (e.g. 'photos, shared, images')."
+        ),
+    )
+    vendor_derive_min_len: int = Field(
+        default=3,
+        description="Ignore path tokens shorter than this many characters.",
+    )
+    vendor_derive_include_filename: bool = Field(
+        default=False,
+        description="Include the file's basename as a candidate vendor token.",
+    )
+
+    # ------------------------------------------------------------------ #
     # Database backups (pg_dump custom format)
     # ------------------------------------------------------------------ #
     backup_dir: Path = Field(

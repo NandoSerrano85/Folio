@@ -16,6 +16,7 @@ from sqlalchemy import Select, and_, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from folio_core.models import Account, Folder, FolderImage, Image, ImageSource, Vendor
+from folio_core.vendors import get_or_create_vendor
 
 from ..deps import get_db, require_user, safe_media_path
 from ..schemas import (
@@ -23,6 +24,9 @@ from ..schemas import (
     ImageListItem,
     ImageListResponse,
     ImageSourceOut,
+    SetImagesVendorRequest,
+    SetImagesVendorResponse,
+    VendorRef,
 )
 from ..thumbnails import clamp_size, generate_thumbnail
 
@@ -286,6 +290,56 @@ def list_images(
         page=page,
         page_size=page_size,
         pages=pages,
+    )
+
+
+@router.post("/vendor", response_model=SetImagesVendorResponse)
+def set_images_vendor(
+    payload: SetImagesVendorRequest,
+    db: Session = Depends(get_db),
+) -> SetImagesVendorResponse:
+    """Bulk-assign (or clear) the vendor on every source of the given images.
+
+    Resolution order: an explicit ``vendor_id`` (404 if it does not exist);
+    else a non-empty ``vendor_name`` resolved via ``get_or_create_vendor``;
+    else ``NULL`` to clear the vendor. The change is applied to ALL
+    ``image_sources`` rows whose ``image_id`` is in ``image_ids``.
+    """
+    image_ids = list(dict.fromkeys(payload.image_ids))
+    if not image_ids:
+        return SetImagesVendorResponse(updated_images=0, updated_sources=0, vendor=None)
+
+    vendor: Vendor | None = None
+    name = (payload.vendor_name or "").strip()
+    if payload.vendor_id is not None:
+        vendor = db.get(Vendor, payload.vendor_id)
+        if vendor is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Vendor not found"
+            )
+    elif name:
+        vendor = get_or_create_vendor(db, name)
+
+    new_vendor_id = vendor.id if vendor is not None else None
+
+    sources = db.scalars(
+        select(ImageSource).where(ImageSource.image_id.in_(image_ids))
+    ).all()
+
+    touched_images: set[int] = set()
+    for src in sources:
+        src.vendor_id = new_vendor_id
+        touched_images.add(src.image_id)
+
+    db.commit()
+
+    vendor_ref = (
+        VendorRef(id=vendor.id, name=vendor.name) if vendor is not None else None
+    )
+    return SetImagesVendorResponse(
+        updated_images=len(touched_images),
+        updated_sources=len(sources),
+        vendor=vendor_ref,
     )
 
 

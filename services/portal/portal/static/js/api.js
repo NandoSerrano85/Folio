@@ -89,6 +89,23 @@ export function thumbUrl(id, size) {
 export function fileUrl(id) {
   return `/api/images/${id}/file`;
 }
+/**
+ * Bulk-assign (or clear) the vendor on every source of the given images.
+ * Pass {vendorId} to assign an existing vendor, {vendorName} to get-or-create
+ * by name, or neither (both null) to CLEAR the vendor. Matches the FROZEN
+ * POST /api/images/vendor contract.
+ */
+export async function setImagesVendor(imageIds, { vendorId = null, vendorName = null } = {}) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.setImagesVendor) return d.api.setImagesVendor(imageIds, { vendorId, vendorName });
+  }
+  return req("POST", "/api/images/vendor", {
+    image_ids: imageIds,
+    vendor_id: vendorId,
+    vendor_name: vendorName,
+  });
+}
 
 // --------------------------------------------------------------- folders -- //
 export async function folders() {

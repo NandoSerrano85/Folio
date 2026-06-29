@@ -202,6 +202,33 @@ class VendorCreate(BaseModel):
     notes: str | None = None
 
 
+class VendorRef(BaseModel):
+    """Minimal vendor reference for bulk-operation responses."""
+
+    id: int
+    name: str
+
+
+class SetImagesVendorRequest(BaseModel):
+    """Bulk set-vendor body.
+
+    Targets the images in ``image_ids``. Supply EITHER an existing
+    ``vendor_id`` OR a ``vendor_name`` (get-or-created server-side via
+    ``folio_core.vendors.get_or_create_vendor``). When both are null the
+    images' sources have their vendor cleared.
+    """
+
+    image_ids: list[int] = Field(default_factory=list)
+    vendor_id: int | None = None
+    vendor_name: str | None = Field(default=None, max_length=256)
+
+
+class SetImagesVendorResponse(BaseModel):
+    updated_images: int
+    updated_sources: int
+    vendor: VendorRef | None = None
+
+
 # --------------------------------------------------------------------------- #
 # Accounts
 # --------------------------------------------------------------------------- #
@@ -257,6 +284,9 @@ __all__ = [
     "SenderUpdate",
     "VendorOut",
     "VendorCreate",
+    "VendorRef",
+    "SetImagesVendorRequest",
+    "SetImagesVendorResponse",
     "AccountOut",
     "DownloadRequest",
     "CountByName",

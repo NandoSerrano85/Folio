@@ -147,6 +147,47 @@ def restamp(
 
 
 # --------------------------------------------------------------------------- #
+# derive-vendors (backfill image_sources.vendor_id from Drive folder paths)
+# --------------------------------------------------------------------------- #
+@app.command("derive-vendors")
+def derive_vendors(
+    account: str | None = typer.Option(
+        None, "--account", help="Limit to one account email (default: all)."
+    ),
+    apply: bool = typer.Option(
+        False,
+        "--apply/--dry-run",
+        help="Write the derived vendors (default: dry-run, no changes).",
+    ),
+    strategy: str | None = typer.Option(
+        None,
+        "--strategy",
+        help="Override VENDOR_DERIVE_STRATEGY: frequent | parent | top.",
+    ),
+    include_filename: bool | None = typer.Option(
+        None,
+        "--include-filename/--no-include-filename",
+        help="Include the file basename as a candidate (default: from settings).",
+    ),
+    only_unmapped: bool = typer.Option(
+        True,
+        "--only-unmapped/--all",
+        help="Only sources with no vendor yet (--all re-derives everything).",
+    ),
+) -> None:
+    """Derive vendors from Drive folder paths (dry-run by default)."""
+    from worker.derive_vendors import run_derive_vendors
+
+    run_derive_vendors(
+        account,
+        apply=apply,
+        strategy=strategy,
+        include_filename=include_filename,
+        only_unmapped=only_unmapped,
+    )
+
+
+# --------------------------------------------------------------------------- #
 # assist (human-in-the-loop resolution of un-automatable vendor emails)
 # --------------------------------------------------------------------------- #
 @app.command("assist-list")
