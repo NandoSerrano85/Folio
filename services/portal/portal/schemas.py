@@ -192,14 +192,22 @@ class VendorOut(BaseModel):
     adapter_key: str
     login_required: bool = False
     notes: str | None = None
+    image_count: int = 0
 
 
 class VendorCreate(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     domain: str | None = Field(default=None, max_length=256)
-    adapter_key: str = Field(min_length=1, max_length=128)
+    adapter_key: str | None = Field(default=None, max_length=128)
     login_required: bool = False
     notes: str | None = None
+
+
+class VendorUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=256)
+    domain: str | None = Field(default=None, max_length=256)
+    notes: str | None = None
+    login_required: bool | None = None
 
 
 class VendorRef(BaseModel):
@@ -284,6 +292,7 @@ __all__ = [
     "SenderUpdate",
     "VendorOut",
     "VendorCreate",
+    "VendorUpdate",
     "VendorRef",
     "SetImagesVendorRequest",
     "SetImagesVendorResponse",

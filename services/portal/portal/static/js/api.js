@@ -144,6 +144,27 @@ export async function vendors() {
   if (DEMO) return (await demo()).api.vendors();
   return req("GET", "/api/vendors");
 }
+export async function createVendor(payload) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.createVendor) return d.api.createVendor(payload);
+  }
+  return req("POST", "/api/vendors", payload);
+}
+export async function updateVendor(id, patch) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.updateVendor) return d.api.updateVendor(id, patch);
+  }
+  return req("PATCH", `/api/vendors/${id}`, patch);
+}
+export async function deleteVendor(id) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.deleteVendor) return d.api.deleteVendor(id);
+  }
+  return req("DELETE", `/api/vendors/${id}`);
+}
 
 // -------------------------------------------------------------- accounts -- //
 export async function accounts() {

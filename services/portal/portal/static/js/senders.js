@@ -7,7 +7,7 @@
 // and the "Add drive"/"Connect" actions explain that drives are configured
 // server-side (matching the contract; documented in the report).
 
-import { el, clear, icons } from "./util.js";
+import { el, clear, icons, vendorColor } from "./util.js";
 import { state, toast } from "./state.js";
 import * as api from "./api.js";
 
@@ -57,6 +57,7 @@ function render() {
 
   root.appendChild(buildEmailSection());
   root.appendChild(buildDriveSection());
+  root.appendChild(buildVendorsSection());
 }
 
 // ----------------------------------------------------------- email senders -- //
@@ -306,4 +307,125 @@ function addDrive(input) {
   if (!raw) return;
   toast("Drive folders are configured on the server (read-only here).");
   input.value = "";
+}
+
+// ----------------------------------------------------------------- vendors -- //
+// Column layout shared by the vendors header + rows (name · image count · row
+// actions). Defined inline so it matches the senders/drive tables without a new
+// CSS grid class.
+const VENDOR_GRID = "1fr 116px 150px";
+
+function buildVendorsSection() {
+  const frag = document.createDocumentFragment();
+  const vendors = state.vendorsList || [];
+
+  frag.appendChild(el("div", { class: "section-head tight" }, [
+    el("h2", { text: "Vendors" }),
+    el("span", { class: "section-stat", text: `${vendors.length} vendor${vendors.length === 1 ? "" : "s"}` }),
+  ]));
+  frag.appendChild(el("p", {
+    class: "section-help",
+    text: "Designers/brands you assign to images. Add them here, or create them on the fly when bulk-tagging in the library.",
+  }));
+
+  const input = el("input", {
+    class: "add-input", placeholder: "Vendor or designer name",
+    onKeyDown: (e) => { if (e.key === "Enter") submitVendor(input); },
+  });
+  frag.appendChild(el("div", { class: "add-row" }, [
+    input,
+    el("button", { class: "btn-primary btn-add", text: "Add vendor", onClick: () => submitVendor(input) }),
+  ]));
+
+  const table = el("div", { class: "table" });
+  table.appendChild(el("div", { class: "thead", style: { display: "grid", gridTemplateColumns: VENDOR_GRID } }, [
+    el("span", { text: "Vendor" }),
+    el("span", { class: "th-r", text: "Images" }),
+    el("span", { class: "th-r", text: "Actions" }),
+  ]));
+
+  const rows = vendors.slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!rows.length) {
+    table.appendChild(el("div", { class: "empty-table", text: "No vendors yet. Add one above." }));
+  } else {
+    rows.forEach((v) => table.appendChild(vendorRow(v)));
+  }
+  frag.appendChild(table);
+
+  frag.appendChild(el("p", {
+    class: "section-note",
+    text: "Deleting a vendor unassigns it from images — the images and their files stay in the library.",
+  }));
+  return frag;
+}
+
+function vendorRow(v) {
+  const wrap = el("div", { class: "trow" });
+
+  const nameCell = el("div", { style: { display: "flex", alignItems: "center", gap: "9px", minWidth: "0" } }, [
+    el("span", { class: "vendor-dot", style: { background: vendorColor(v.name) } }),
+    el("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, text: v.name }),
+  ]);
+
+  const actions = el("div", { style: { display: "flex", justifyContent: "flex-end", gap: "14px" } }, [
+    el("button", { class: "link-btn", text: "Rename", onClick: () => renameVendor(v) }),
+    el("button", { class: "link-btn", text: "Delete", onClick: () => removeVendor(v) }),
+  ]);
+
+  wrap.appendChild(el("div", { class: "tcells", style: { display: "grid", gridTemplateColumns: VENDOR_GRID } }, [
+    nameCell,
+    el("div", { class: "cell-num", text: String(v.image_count || 0) }),
+    actions,
+  ]));
+  return wrap;
+}
+
+// Re-fetch vendors into shared state and re-render the screen so the list, the
+// "N vendors" stat, and the sender vendor-mapping dropdowns all stay in sync.
+async function refreshVendors() {
+  try {
+    state.vendorsList = (await api.vendors()) || [];
+  } catch (_) {
+    toast("Could not refresh vendors.");
+  }
+  render();
+}
+
+async function submitVendor(input) {
+  const name = (input.value || "").trim();
+  if (!name) return;
+  try {
+    await api.createVendor({ name });
+    input.value = "";
+    toast(`Added vendor ${name}.`);
+    await refreshVendors();
+  } catch (e) {
+    if (e && e.status === 409) toast("That vendor already exists");
+    else toast("Could not add that vendor.");
+  }
+}
+
+async function renameVendor(v) {
+  const next = window.prompt("Rename vendor", v.name);
+  if (next == null) return;
+  const name = next.trim();
+  if (!name || name === v.name) return;
+  try {
+    await api.updateVendor(v.id, { name });
+    toast("Vendor renamed.");
+    await refreshVendors();
+  } catch (_) {
+    toast("Could not rename vendor.");
+  }
+}
+
+async function removeVendor(v) {
+  if (!window.confirm(`Delete vendor ${v.name}? Images keep their files; they just lose this vendor.`)) return;
+  try {
+    await api.deleteVendor(v.id);
+    toast("Vendor deleted.");
+    await refreshVendors();
+  } catch (_) {
+    toast("Could not delete vendor.");
+  }
 }
