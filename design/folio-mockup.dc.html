@@ -200,6 +200,7 @@ input,button,select,textarea{font-family:inherit}
             <sc-if value="{{ hasSelection }}">
               <div style="display:flex;align-items:center;gap:10px;padding-left:13px;border-left:1px solid var(--line)">
                 <span style="font-size:13px;font-weight:600">{{ selectedCount }} selected</span>
+                <button onClick="{{ onEditSelection }}" style="display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:var(--surface-2)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.7.7L4 10z"></path></svg>Edit</button>
                 <button onClick="{{ onDownloadSelected }}" style="display:flex;align-items:center;gap:7px;height:32px;padding:0 12px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2.5" x2="8" y2="10.5"></line><polyline points="4.5,7 8,10.6 11.5,7"></polyline><line x1="3" y1="13.2" x2="13" y2="13.2"></line></svg>Download selected (zip)</button>
                 <button onClick="{{ onClearSelection }}" style="background:none;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px">Clear</button>
               </div>
@@ -427,20 +428,86 @@ input,button,select,textarea{font-family:inherit}
               <button onClick="{{ lb.onDownload }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:9px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2.5" x2="8" y2="10.5"></line><polyline points="4.5,7 8,10.6 11.5,7"></polyline><line x1="3" y1="13.2" x2="13" y2="13.2"></line></svg>Download</button>
               <button onClick="{{ lb.onVendor }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;height:38px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-weight:500;cursor:pointer" style-hover="background:var(--surface-2)">Open at vendor <span style="font-size:13px">↗</span></button>
             </div>
-            <button onClick="{{ lb.onToggleAdd }}" style="height:38px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-weight:500;cursor:pointer" style-hover="background:var(--surface-2)">+ Add to folder</button>
-            <sc-if value="{{ lb.addOpen }}">
-              <div style="position:absolute;left:14px;right:14px;bottom:60px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;max-height:236px;overflow:auto;z-index:5;animation:folioIn .12s ease">
-                <sc-for list="{{ lb.folderToggles }}" as="ft">
-                  <div onClick="{{ ft.onToggle }}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--ink)" style-hover="background:var(--surface-2)">
-                    <span>{{ ft.name }}</span>
-                    <sc-if value="{{ ft.inFolder }}"><span style="color:var(--accent);display:flex"><svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if>
-                  </div>
-                </sc-for>
-              </div>
-            </sc-if>
+            <button onClick="{{ lb.onEdit }}" style="height:38px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px" style-hover="background:var(--surface-2)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.7.7L4 10z"></path></svg>Edit details</button>
           </div>
         </div>
         <button onClick="{{ lb.onClose }}" style="position:absolute;right:14px;top:14px;width:34px;height:34px;border-radius:50%;border:none;background:var(--surface);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:10" style-hover="background:var(--surface-2)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg></button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ editOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ edit.onBackdrop }}" style="position:fixed;inset:0;z-index:70;background:var(--overlay);display:flex;align-items:center;justify-content:center;padding:28px;animation:lbIn .15s ease">
+      <div style="position:relative;width:100%;max-width:468px;max-height:calc(100vh - 56px);display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 80px -20px rgba(0,0,0,.6);overflow:hidden;animation:folioIn .16s ease">
+        <div style="padding:22px 24px 0;flex-shrink:0">
+          <h2 style="margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:22px;letter-spacing:-.01em">{{ editTitle }}</h2>
+          <div style="margin-top:5px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);word-break:break-all">{{ editSubtitle }}</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:18px 24px 6px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:9px">Vendor</div>
+          <sc-if value="{{ editIsSingle }}">
+            <div style="display:flex;flex-direction:column;gap:1px">
+              <sc-for list="{{ edit.vendorRows }}" as="v">
+                <div onClick="{{ v.onSelect }}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer" style-hover="background:var(--surface-2)">
+                  <span style="position:relative;width:17px;height:17px;border-radius:50%;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)"><sc-if value="{{ v.selected }}"><span style="width:9px;height:9px;border-radius:50%;background:var(--accent)"></span></sc-if></span>
+                  <span style="{{ v.dotStyle }}"></span>
+                  <span style="flex:1;font-size:13.5px;color:var(--ink)">{{ v.name }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ editIsBulk }}">
+            <div style="position:relative">
+              <select value="{{ edit.bulkVendorValue }}" onChange="{{ edit.onBulkVendor }}" style="appearance:none;-webkit-appearance:none;width:100%;height:40px;padding:0 32px 0 12px;background:var(--field);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13.5px;cursor:pointer;outline:none">
+                <option value="">— Keep current vendor —</option>
+                <sc-for list="{{ vendorOptions }}" as="vo"><option value="{{ vo.id }}">Set all to {{ vo.name }}</option></sc-for>
+              </select>
+              <span style="position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="4,6 8,10 12,6"></polyline></svg></span>
+            </div>
+          </sc-if>
+          <div style="display:flex;gap:8px;margin-top:9px;padding-top:11px;border-top:1px dashed var(--line)">
+            <input value="{{ newEditVendor }}" onChange="{{ onNewEditVendor }}" onKeyDown="{{ onNewEditVendorKey }}" placeholder="Add a vendor not in the list…" style="flex:1;min-width:0;height:36px;padding:0 11px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;outline:none;font-size:13px;color:var(--ink)" />
+            <button onClick="{{ onAddEditVendor }}" style="height:36px;padding:0 14px;background:var(--surface-2);border:1px solid var(--line-strong);color:var(--ink);border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer;white-space:nowrap" style-hover="background:var(--line)">+ Add</button>
+          </div>
+          <div style="height:1px;background:var(--line);margin:18px 0"></div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Collections</div>
+          <sc-if value="{{ editIsSingle }}">
+            <div style="display:flex;flex-direction:column;gap:1px">
+              <sc-for list="{{ edit.colRows }}" as="c">
+                <div onClick="{{ c.onToggle }}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer" style-hover="background:var(--surface-2)">
+                  <span style="position:relative;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)"><sc-if value="{{ c.checked }}"><span style="position:absolute;inset:-1.5px;border-radius:5px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-contrast)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5,6.4 5,8.8 9.5,3.4"></polyline></svg></span></sc-if></span>
+                  <span style="flex:1;font-size:13.5px;color:var(--ink)">{{ c.name }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ editIsBulk }}">
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <sc-for list="{{ edit.bulkColRows }}" as="c">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <div style="min-width:0">
+                    <div style="font-size:13.5px;color:var(--ink)">{{ c.name }}</div>
+                    <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:1px">{{ c.hint }}</div>
+                  </div>
+                  <div style="display:flex;gap:5px;flex-shrink:0">
+                    <button onClick="{{ c.onNone }}" style="{{ c.noneStyle }}">—</button>
+                    <button onClick="{{ c.onAdd }}" style="{{ c.addStyle }}">Add</button>
+                    <button onClick="{{ c.onRemove }}" style="{{ c.removeStyle }}">Remove</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div style="display:flex;gap:8px;margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)">
+            <input value="{{ newEditCollection }}" onChange="{{ onNewEditCollection }}" onKeyDown="{{ onNewEditCollectionKey }}" placeholder="Create a new collection…" style="flex:1;min-width:0;height:36px;padding:0 11px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;outline:none;font-size:13px;color:var(--ink)" />
+            <button onClick="{{ onAddEditCollection }}" style="height:36px;padding:0 14px;background:var(--surface-2);border:1px solid var(--line-strong);color:var(--ink);border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer;white-space:nowrap" style-hover="background:var(--line)">+ Add</button>
+          </div>
+        </div>
+        <div style="flex-shrink:0;border-top:1px solid var(--line);padding:14px 24px;display:flex;gap:10px;justify-content:flex-end">
+          <button onClick="{{ edit.onClose }}" style="height:40px;padding:0 16px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:10px;font-weight:500;cursor:pointer" style-hover="background:var(--surface-2)">Cancel</button>
+          <button onClick="{{ edit.onSave }}" style="height:40px;padding:0 18px;background:var(--accent);color:var(--accent-contrast);border:none;border-radius:10px;font-weight:600;cursor:pointer" style-hover="filter:brightness(.94)">{{ edit.saveLabel }}</button>
+        </div>
+        <button onClick="{{ edit.onClose }}" style="position:absolute;right:14px;top:14px;width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2" style-hover="filter:brightness(.95)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg></button>
       </div>
     </div>
   </sc-if>
@@ -524,7 +591,7 @@ class Component extends DCLogic {
       sort:'newest', pageSize:25, page:1,
       selected:new Set(), hoverId:null,
       lightboxIndex:null, addFolderOpen:false, userMenuOpen:false,
-      membership:built.membership, senders, newSender:'', driveSources:this.driveSeed.map(d=>Object.assign({},d)), newDrive:'', toast:null
+      membership:built.membership, senders, newSender:'', driveSources:this.driveSeed.map(d=>Object.assign({},d)), newDrive:'', editMode:null, editIds:[], editVendor:'', editCollections:new Set(), editColActions:{}, newEditVendor:'', newEditCollection:'', toast:null
     };
     this._onKey=this._onKey.bind(this);
     this._setRoot=(el)=>{ this.rootEl=el; if(el) this.applyTheme(); };
@@ -660,6 +727,49 @@ class Component extends DCLogic {
   lbNext(){ const list=this.computeList(); this.setState(st=>({lightboxIndex:Math.min((st.lightboxIndex==null?0:st.lightboxIndex)+1,list.length-1),addFolderOpen:false})); }
   lbPrev(){ this.setState(st=>({lightboxIndex:Math.max((st.lightboxIndex==null?0:st.lightboxIndex)-1,0),addFolderOpen:false})); }
   toggleMembership(imgId,fid){ this.setState(st=>{ const mm=Object.assign({},st.membership); const arr=(mm[imgId]||[]).slice(); const i=arr.indexOf(fid); if(i>=0) arr.splice(i,1); else arr.push(fid); mm[imgId]=arr; return {membership:mm}; },()=>{ const name=(this.fmap[fid]||{}).name||fid; this.toast('Updated collections · '+name); }); }
+  openSingleEdit(id){ const im=this.images.find(x=>x.id===id); if(!im) return; const cols=new Set((this.state.membership[id]||[]).filter(f=>f!=='all')); this.setState({editMode:'single',editIds:[id],editVendor:im.vendor,editCollections:cols,editColActions:{},newEditVendor:'',newEditCollection:'',userMenuOpen:false}); }
+  openBulkEdit(){ const ids=[...this.state.selected]; if(!ids.length) return; this.setState({editMode:'bulk',editIds:ids,editVendor:'',editCollections:new Set(),editColActions:{},newEditVendor:'',newEditCollection:''}); }
+  openEditFromSelection(){ const ids=[...this.state.selected]; if(ids.length===1) this.openSingleEdit(ids[0]); else if(ids.length>1) this.openBulkEdit(); }
+  addInlineVendor(){
+    const name=(this.state.newEditVendor||'').trim(); if(!name) return;
+    if(this.vendors.some(v=>v.name.toLowerCase()===name.toLowerCase())){ this.toast('That vendor already exists.'); return; }
+    const palette=['#6b8f9c','#b07d62','#6f8f6a','#8a7fb0','#c2a14e','#5fa08a','#a36b78','#7e8aa0','#b5895b','#74937f'];
+    const id='v-custom-'+Date.now();
+    const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    const v={id,name,color:palette[this.vendors.length%palette.length],domain:(slug||'vendor')+'.com',sender:null};
+    this.vendors.push(v); this.vmap[id]=v;
+    this.setState(st=>{ const ev=new Set(st.enabledVendors); ev.add(id); return {enabledVendors:ev,editVendor:id,newEditVendor:''}; },()=>this.toast('Added vendor · '+name));
+  }
+  addInlineCollection(){
+    const name=(this.state.newEditCollection||'').trim(); if(!name) return;
+    if(this.folders.some(f=>f.name.toLowerCase()===name.toLowerCase())){ this.toast('That collection already exists.'); return; }
+    const id='f-custom-'+Date.now();
+    this.folders.push({id,name,desc:'Created from the editor.'}); this.fmap[id]=this.folders[this.folders.length-1];
+    this.setState(st=>{ const extra={newEditCollection:''};
+      if(st.editMode==='single'){ const c=new Set(st.editCollections); c.add(id); extra.editCollections=c; }
+      else if(st.editMode==='bulk'){ const mm=Object.assign({},st.editColActions); mm[id]='add'; extra.editColActions=mm; }
+      return extra;
+    },()=>this.toast('Added collection · '+name));
+  }
+  closeEdit(){ this.setState({editMode:null,editIds:[]}); }
+  setEditVendor(v){ this.setState({editVendor:v}); }
+  toggleEditCollection(fid){ this.setState(st=>{ const c=new Set(st.editCollections); c.has(fid)?c.delete(fid):c.add(fid); return {editCollections:c}; }); }
+  setBulkCol(fid,action){ this.setState(st=>{ const mm=Object.assign({},st.editColActions); if(action==='none') delete mm[fid]; else mm[fid]=action; return {editColActions:mm}; }); }
+  applyVendorTo(im,vid){ const v=this.vmap[vid]; if(!v) return; im.vendor=vid; im.vendorName=v.name; im.vendorColor=v.color; }
+  saveEdit(){ const s=this.state;
+    if(s.editMode==='single'){ const id=s.editIds[0]; const im=this.images.find(x=>x.id===id); if(im&&s.editVendor) this.applyVendorTo(im,s.editVendor);
+      this.setState(st=>{ const mm=Object.assign({},st.membership); mm[id]=['all'].concat([...st.editCollections]); return {membership:mm,editMode:null,editIds:[]}; },()=>this.toast('Saved changes'+(im?' · '+im.filename:'')));
+    } else if(s.editMode==='bulk'){ const ids=s.editIds.slice();
+      if(s.editVendor) ids.forEach(id=>{ const im=this.images.find(x=>x.id===id); if(im) this.applyVendorTo(im,s.editVendor); });
+      this.setState(st=>{ const mm=Object.assign({},st.membership);
+        ids.forEach(id=>{ let arr=(mm[id]||['all']).slice();
+          Object.keys(st.editColActions).forEach(fid=>{ const a=st.editColActions[fid]; if(a==='add'){ if(arr.indexOf(fid)<0) arr.push(fid); } else if(a==='remove'){ arr=arr.filter(x=>x!==fid); } });
+          if(arr.indexOf('all')<0) arr.unshift('all'); mm[id]=arr;
+        });
+        return {membership:mm,editMode:null,editIds:[]};
+      },()=>this.toast('Updated '+ids.length+' images'));
+    }
+  }
   toggleSender(addr){ this.setState(st=>({senders:st.senders.map(x=>x.address===addr?Object.assign({},x,{included:!x.included}):x)})); }
   setSenderVendor(addr,v){ this.setState(st=>({senders:st.senders.map(x=>x.address===addr?Object.assign({},x,{vendorId:v||null}):x)})); }
   addSender(){
@@ -776,8 +886,43 @@ class Component extends DCLogic {
         onClose:()=>this.closeLightbox(),onPrev:()=>this.lbPrev(),onNext:()=>this.lbNext(),
         onDownload:()=>this.toast('Saved '+im.filename),onVendor:()=>this.openVendor(im),
         onToggleAdd:()=>this.setState(st=>({addFolderOpen:!st.addFolderOpen})),
+        onEdit:()=>this.openSingleEdit(im.id),
         folderToggles:this.folders.filter(f=>f.id!=='all').map(f=>({id:f.id,name:f.name,inFolder:(m[im.id]||[]).indexOf(f.id)>=0,onToggle:()=>this.toggleMembership(im.id,f.id)}))
       };
+    }
+
+    const editOpen=s.editMode!=null;
+    let edit=null, editIsSingle=false, editIsBulk=false, editTitle='', editSubtitle='';
+    if(editOpen){
+      editIsSingle=s.editMode==='single'; editIsBulk=s.editMode==='bulk';
+      const colFolders=this.folders.filter(f=>f.id!=='all');
+      const pill=(active,kind)=>{ const b={height:'28px',padding:'0 12px',borderRadius:'8px',border:'1px solid var(--line-strong)',background:'var(--field)',color:'var(--ink-soft)',fontSize:'12px',fontWeight:600,cursor:'pointer'};
+        if(!active) return b;
+        if(kind==='add') return Object.assign({},b,{background:'var(--accent)',color:'var(--accent-contrast)',borderColor:'var(--accent)'});
+        if(kind==='remove') return Object.assign({},b,{background:'#bb4a32',color:'#fff',borderColor:'#bb4a32'});
+        return Object.assign({},b,{background:'var(--ink)',color:'var(--bg)',borderColor:'var(--ink)'});
+      };
+      if(editIsSingle){
+        const im=this.images.find(x=>x.id===s.editIds[0]);
+        editTitle='Edit image'; editSubtitle=im?im.filename:'';
+        edit={ onClose:()=>this.closeEdit(), onSave:()=>this.saveEdit(), saveLabel:'Save changes', onBackdrop:(e)=>{ if(e.target===e.currentTarget) this.closeEdit(); },
+          bulkVendorValue:'', onBulkVendor:()=>{}, bulkColRows:[],
+          vendorRows:this.vendors.map(v=>({id:v.id,name:v.name,selected:s.editVendor===v.id,dotStyle:{width:'9px',height:'9px',borderRadius:'50%',background:v.color,flexShrink:0},onSelect:()=>this.setEditVendor(v.id)})),
+          colRows:colFolders.map(f=>({id:f.id,name:f.name,checked:s.editCollections.has(f.id),onToggle:()=>this.toggleEditCollection(f.id)}))
+        };
+      } else {
+        const n=s.editIds.length;
+        editTitle='Edit '+n+' images'; editSubtitle='Changes apply to all '+n+' selected images.';
+        edit={ onClose:()=>this.closeEdit(), onSave:()=>this.saveEdit(), saveLabel:'Apply to '+n+' images', onBackdrop:(e)=>{ if(e.target===e.currentTarget) this.closeEdit(); },
+          vendorRows:[], colRows:[],
+          bulkVendorValue:s.editVendor, onBulkVendor:(e)=>this.setEditVendor(e.target.value),
+          bulkColRows:colFolders.map(f=>{ const inCount=s.editIds.filter(id=>(m[id]||[]).indexOf(f.id)>=0).length; const action=s.editColActions[f.id]||'none';
+            return {id:f.id,name:f.name,hint:inCount+' of '+n+' now in',
+              noneStyle:pill(action==='none','none'),addStyle:pill(action==='add','add'),removeStyle:pill(action==='remove','remove'),
+              onNone:()=>this.setBulkCol(f.id,'none'),onAdd:()=>this.setBulkCol(f.id,'add'),onRemove:()=>this.setBulkCol(f.id,'remove')};
+          })
+        };
+      }
     }
 
     return {
@@ -812,6 +957,9 @@ class Component extends DCLogic {
       driveRows,dTotal:s.driveSources.length,dIncluded,
       newDrive:s.newDrive,onNewDrive:(e)=>this.setState({newDrive:e.target.value}),onAddDrive:()=>this.addDrive(),onAddDriveKey:(e)=>{ if(e.key==='Enter') this.addDrive(); },onConnectDrive:()=>this.connectDrive(),
       lightboxOpen,lb,
+      editOpen,edit,editIsSingle,editIsBulk,editTitle,editSubtitle,onEditSelection:()=>this.openEditFromSelection(),
+      newEditVendor:s.newEditVendor,onNewEditVendor:(e)=>this.setState({newEditVendor:e.target.value}),onNewEditVendorKey:(e)=>{ if(e.key==='Enter') this.addInlineVendor(); },onAddEditVendor:()=>this.addInlineVendor(),
+      newEditCollection:s.newEditCollection,onNewEditCollection:(e)=>this.setState({newEditCollection:e.target.value}),onNewEditCollectionKey:(e)=>{ if(e.key==='Enter') this.addInlineCollection(); },onAddEditCollection:()=>this.addInlineCollection(),
       toastOpen:!!s.toast,toast:s.toast
     };
   }

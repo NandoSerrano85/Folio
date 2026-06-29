@@ -18,6 +18,7 @@ import {
 import * as api from "./api.js";
 import { flattenFolders } from "./folders.js";
 import { openLightbox } from "./lightbox.js";
+import { openEditFromSelection } from "./edit.js";
 
 const QUERY_KEYS = ["folder", "account", "vendor", "search", "dateFrom", "dateTo", "sort", "pageSize", "page"];
 const SIDEBAR_KEYS = ["foldersFlat", "accountsList", "vendorsList", "vendorCountByName", "statsTotal", "folder", "account", "vendor", "datePreset", "dateFrom", "dateTo", "search"];
@@ -342,17 +343,23 @@ function buildToolbar() {
   ]));
 
   if (state.selected.size > 0) {
+    // Edit → opens the v2 Edit modal (single when exactly one is selected,
+    // bulk otherwise). The pencil button matches the design's outlined style.
+    const editBtn = el("button", { class: "btn-edit-sel", onClick: openEditFromSelection });
+    editBtn.appendChild(icons.pencil(13));
+    editBtn.appendChild(document.createTextNode("Edit"));
+
     const dl = el("button", { class: "btn-primary btn-download", onClick: downloadSelected });
     dl.appendChild(icons.download(14));
     dl.appendChild(document.createTextNode("Download selected (zip)"));
+
     left.appendChild(el("div", { class: "selection-info" }, [
       el("span", { class: "sel-count", text: `${state.selected.size} selected` }),
+      editBtn,
       dl,
-      bulkMenuButton("Add to collection", buildCollectionMenu),
-      bulkMenuButton("Set vendor", buildVendorMenu),
       el("button", {
         class: "link-btn", text: "Clear",
-        onClick: () => { closeBulkMenu(); setState({ selected: new Set() }); },
+        onClick: () => setState({ selected: new Set() }),
       }),
     ]));
   }
@@ -568,147 +575,11 @@ async function openAtVendor(item) {
   }
 }
 
-// --------------------------------------------------------- bulk selection -- //
-// Two popover actions on the current selection, shown in the selection toolbar.
-// They reuse the lightbox "Add to folder" popover pattern (.add-popover /
-// .add-item / .add-empty) so the design matches. All API-supplied names are
-// rendered via el()'s `text` (textContent) — never innerHTML.
-
-let activeBulkMenu = null; // the wrapper currently showing a popover
-
-function closeBulkMenu() {
-  if (activeBulkMenu) {
-    const pop = activeBulkMenu.querySelector(".add-popover");
-    if (pop) pop.remove();
-    activeBulkMenu = null;
-  }
-  document.removeEventListener("click", onBulkOutside, true);
-}
-
-function onBulkOutside(e) {
-  if (activeBulkMenu && !activeBulkMenu.contains(e.target)) closeBulkMenu();
-}
-
-/** A toolbar button that toggles an anchored popover built by `build(pop)`. */
-function bulkMenuButton(label, build) {
-  const wrap = el("div", {
-    class: "bulk-menu",
-    style: { position: "relative", display: "inline-flex" },
-  });
-  const btn = el("button", {
-    class: "link-btn", text: label,
-    onClick: (e) => {
-      e.stopPropagation();
-      const wasOpen = !!wrap.querySelector(".add-popover");
-      closeBulkMenu();
-      if (wasOpen) return; // toggle off
-      const pop = el("div", { class: "add-popover" });
-      build(pop);
-      wrap.appendChild(pop);
-      activeBulkMenu = wrap;
-      document.addEventListener("click", onBulkOutside, true);
-    },
-  });
-  wrap.appendChild(btn);
-  return wrap;
-}
-
-function buildCollectionMenu(pop) {
-  if (!state.foldersFlat.length) {
-    pop.appendChild(el("div", { class: "add-empty", text: "No collections yet." }));
-  }
-  for (const f of state.foldersFlat) {
-    pop.appendChild(el("div", {
-      class: "add-item",
-      style: f.depth ? { paddingLeft: `${12 + Math.min(f.depth, 2) * 12}px` } : null,
-      onClick: () => addSelectedToCollection(f.id, f.name),
-    }, [el("span", { text: f.name })]));
-  }
-  pop.appendChild(el("div", {
-    class: "add-item add-new",
-    onClick: createCollectionAndAdd,
-  }, [el("span", { style: { color: "var(--muted)" }, text: "+ New collection…" })]));
-}
-
-function buildVendorMenu(pop) {
-  if (!state.vendorsList.length) {
-    pop.appendChild(el("div", { class: "add-empty", text: "No vendors yet." }));
-  }
-  for (const v of state.vendorsList) {
-    pop.appendChild(el("div", {
-      class: "add-item",
-      onClick: () => setSelectedVendor({ vendorId: v.id }, v.name),
-    }, [
-      el("span", { class: "vendor-dot", style: { background: vendorColor(v.name) } }),
-      el("span", { text: v.name }),
-    ]));
-  }
-  pop.appendChild(el("div", {
-    class: "add-item add-new",
-    onClick: createVendorAndSet,
-  }, [el("span", { style: { color: "var(--muted)" }, text: "+ New vendor…" })]));
-}
-
-async function addSelectedToCollection(folderId, name) {
-  closeBulkMenu();
-  const ids = Array.from(state.selected);
-  if (!ids.length) return;
-  try {
-    await api.addImagesToFolder(folderId, ids);
-    toast(`Added ${ids.length} to ${name}`);
-    await loadReference(); // refresh folder counts
-    if (state.folder === folderId) await refresh(); // viewing target -> show new members
-    setState({ selected: new Set() });
-  } catch (e) {
-    toast("Could not add to collection.");
-  }
-}
-
-async function createCollectionAndAdd() {
-  closeBulkMenu();
-  const ids = Array.from(state.selected);
-  if (!ids.length) return;
-  const raw = window.prompt("Name your new collection");
-  if (raw == null) return; // cancelled
-  const name = raw.trim();
-  if (!name) return;
-  try {
-    const folder = await api.createFolder(name);
-    await api.addImagesToFolder(folder.id, ids);
-    toast(`Added ${ids.length} to ${name}`);
-    await loadReference();
-    setState({ selected: new Set() });
-  } catch (e) {
-    toast("Could not add to collection.");
-  }
-}
-
-async function setSelectedVendor(opts, name) {
-  closeBulkMenu();
-  const ids = Array.from(state.selected);
-  if (!ids.length) return;
-  try {
-    await api.setImagesVendor(ids, opts);
-    toast(`Set vendor on ${ids.length}`);
-    await loadReference();   // refresh vendor list + counts
-    await refresh();         // re-fetch grid so the new vendor label shows
-    setState({ selected: new Set() });
-  } catch (e) {
-    toast("Could not set vendor.");
-  }
-}
-
-async function createVendorAndSet() {
-  closeBulkMenu();
-  if (!state.selected.size) return;
-  const raw = window.prompt("Name the new vendor");
-  if (raw == null) return; // cancelled
-  const name = raw.trim();
-  if (!name) return;
-  setSelectedVendor({ vendorName: name }, name);
-}
-
-/** Called by the lightbox after membership changes to refresh folder counts. */
-export function refreshReference() {
-  loadReference();
+// ------------------------------------------------------------ grid refresh -- //
+/**
+ * Re-fetch the current page of images. Exported so the Edit modal can refresh
+ * the grid after a save (vendor labels / folder membership may have changed).
+ */
+export function refreshGrid() {
+  return refresh();
 }

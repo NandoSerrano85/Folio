@@ -5,15 +5,15 @@
 // cached locally so prev/next never disturb the grid's page state.
 // Keyboard: Esc closes, ←/→ navigate. Image uses the original file (file_url).
 
-import { el, clear, icons, checkSvg, vendorColor, gradientFor, fmtLong, fmtBytes, isHttpUrl } from "./util.js";
+import { el, clear, icons, vendorColor, gradientFor, fmtLong, fmtBytes, isHttpUrl } from "./util.js";
 import { state, setState, subscribe, imageQuery, toast } from "./state.js";
 import * as api from "./api.js";
-import { getImageFolders, toggleMembership } from "./folders.js";
-import { refreshReference } from "./gallery.js";
+import { getImageFolders } from "./folders.js";
+import { openSingleEdit } from "./edit.js";
 
 let initialized = false;
 let overlay = null;
-const ctx = { index: -1, addOpen: false, pageCache: new Map() };
+const ctx = { index: -1, pageCache: new Map() };
 
 /** Open the lightbox at a global index into the current filtered list. */
 export function openLightbox(globalIndex) {
@@ -26,6 +26,19 @@ export function closeLightbox() {
   setState({ lightbox: null });
 }
 
+/**
+ * Re-render the open lightbox from fresh data. Called by the Edit modal after a
+ * save so the vendor / collections shown here stay in sync. The page cache is
+ * reset (vendor or membership may have changed) and reseeded with the current
+ * grid page so neighbouring pages re-fetch lazily on the next navigation.
+ */
+export function refreshLightbox() {
+  if (!state.lightbox || ctx.index < 0) return;
+  ctx.pageCache = new Map();
+  ctx.pageCache.set(state.page, state.items);
+  show(ctx.index);
+}
+
 function init() {
   if (initialized) return;
   initialized = true;
@@ -35,7 +48,8 @@ function init() {
     else show(s.lightbox.index);
   });
   document.addEventListener("keydown", (e) => {
-    if (!state.lightbox) return;
+    // While the Edit modal is open (on top of the lightbox) it owns the keyboard.
+    if (!state.lightbox || state.edit) return;
     if (e.key === "Escape") closeLightbox();
     else if (e.key === "ArrowRight") nav(1);
     else if (e.key === "ArrowLeft") nav(-1);
@@ -46,13 +60,12 @@ init();
 function teardown() {
   if (overlay) { overlay.remove(); overlay = null; }
   ctx.index = -1;
-  ctx.addOpen = false;
 }
 
 function nav(delta) {
   const N = state.total;
   const next = Math.max(0, Math.min(ctx.index + delta, N - 1));
-  if (next !== ctx.index) { ctx.addOpen = false; show(next); }
+  if (next !== ctx.index) show(next);
 }
 
 // Resolve the image at a global index, fetching/caching its page if needed.
@@ -250,73 +263,15 @@ function renderPanel(item, detail, membership) {
   }
   footer.appendChild(actions);
 
-  const addBtn = el("button", {
-    class: "btn-ghost btn-add-folder", text: "+ Add to folder",
-    onClick: () => { ctx.addOpen = !ctx.addOpen; renderAddPopover(footer, item, membership); },
-  });
-  footer.appendChild(addBtn);
-  if (ctx.addOpen) renderAddPopover(footer, item, membership);
+  // Edit details → opens the SINGLE editor for this image (on top of the
+  // lightbox). On save the editor calls refreshLightbox() to re-sync this panel.
+  const editBtn = el("button", { class: "btn-ghost btn-lb-edit", onClick: () => openSingleEdit(item.id) });
+  editBtn.appendChild(icons.pencil(14));
+  editBtn.appendChild(document.createTextNode("Edit details"));
+  footer.appendChild(editBtn);
 
   panel.appendChild(scroll);
   panel.appendChild(footer);
-}
-
-function renderAddPopover(footer, item, membership) {
-  const existing = footer.querySelector(".add-popover");
-  if (existing) existing.remove();
-  if (!ctx.addOpen) return;
-
-  const pop = el("div", { class: "add-popover" });
-  if (!state.foldersFlat.length) {
-    pop.appendChild(el("div", { class: "add-empty", text: "No collections yet." }));
-  }
-  for (const f of state.foldersFlat) {
-    const inFolder = membership.has(f.id);
-    const item_ = el("div", {
-      class: "add-item",
-      onClick: async () => {
-        try {
-          const next = await toggleMembership(item, f.id, membership.has(f.id));
-          membership = next;
-          toast(`Updated collections · ${f.name}`);
-          refreshReference(); // refresh folder counts
-          renderAddPopover(footer, item, membership);
-          // refresh the chips list above
-          if (ctx.index >= 0) {
-            const scroll = ctx.panelEl.querySelector(".lb-scroll");
-            if (scroll) refreshChips(scroll, membership);
-          }
-        } catch (_) {
-          toast("Could not update collection.");
-        }
-      },
-    }, [el("span", { text: f.name })]);
-    if (inFolder) {
-      const ck = el("span", { class: "add-check" });
-      ck.appendChild(checkSvg(13, 2.2));
-      item_.appendChild(ck);
-    }
-    pop.appendChild(item_);
-  }
-  footer.appendChild(pop);
-}
-
-function refreshChips(scroll, membership) {
-  const blocks = scroll.querySelectorAll(".lb-eyebrow");
-  // Find the "In collections" block (last eyebrow) and rebuild its sibling.
-  let target = null;
-  blocks.forEach((b) => { if (b.textContent === "In collections") target = b.parentElement; });
-  if (!target) return;
-  // remove existing chips/none after the eyebrow
-  Array.from(target.querySelectorAll(".chips,.lb-none")).forEach((n) => n.remove());
-  const names = state.foldersFlat.filter((f) => membership.has(f.id)).map((f) => f.name);
-  if (names.length) {
-    const chips = el("div", { class: "chips" });
-    names.forEach((n) => chips.appendChild(el("span", { class: "chip", text: n })));
-    target.appendChild(chips);
-  } else {
-    target.appendChild(el("span", { class: "lb-none", text: "Not in any collection yet." }));
-  }
 }
 
 async function download(item) {

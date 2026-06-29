@@ -18,6 +18,8 @@ from ..deps import get_db, require_user
 from ..schemas import (
     FolderCreate,
     FolderImagesAdd,
+    FolderImagesRemove,
+    FolderImagesRemoveResponse,
     FolderNode,
     FolderOut,
     FolderUpdate,
@@ -193,6 +195,32 @@ def add_images(
             )
     db.commit()
     return OkResponse()
+
+
+@router.delete("/{folder_id}/images", response_model=FolderImagesRemoveResponse)
+def remove_images(
+    folder_id: int,
+    payload: FolderImagesRemove,
+    db: Session = Depends(get_db),
+) -> FolderImagesRemoveResponse:
+    """Bulk-remove images from a folder (symmetric to the bulk ADD).
+
+    404 when the folder is missing; image ids without a membership row are
+    no-ops. Returns the count of membership rows actually deleted.
+    """
+    _get_folder_or_404(db, folder_id)
+    ids = sorted({i for i in payload.image_ids if i})
+    if not ids:
+        return FolderImagesRemoveResponse(removed=0)
+
+    result = db.execute(
+        delete(FolderImage).where(
+            FolderImage.folder_id == folder_id,
+            FolderImage.image_id.in_(ids),
+        )
+    )
+    db.commit()
+    return FolderImagesRemoveResponse(removed=int(result.rowcount or 0))
 
 
 @router.delete("/{folder_id}/images/{image_id}", response_model=OkResponse)

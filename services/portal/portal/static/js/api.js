@@ -124,6 +124,19 @@ export async function removeImageFromFolder(folderId, imageId) {
   if (DEMO) return (await demo()).api.removeImageFromFolder(folderId, imageId);
   return req("DELETE", `/api/folders/${folderId}/images/${imageId}`);
 }
+/**
+ * Bulk-remove images from a folder (symmetric to addImagesToFolder). Hits the
+ * DELETE /api/folders/{id}/images endpoint with a JSON body of {image_ids}.
+ * 404 if the folder is missing; ids without a membership row are no-ops.
+ * Resolves to {removed:int}.
+ */
+export async function removeImagesFromFolder(folderId, imageIds) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.removeImagesFromFolder) return d.api.removeImagesFromFolder(folderId, imageIds);
+  }
+  return req("DELETE", `/api/folders/${folderId}/images`, { image_ids: imageIds });
+}
 
 // --------------------------------------------------------------- senders -- //
 export async function senders(accountId) {

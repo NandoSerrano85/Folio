@@ -262,6 +262,8 @@ a{color:inherit}
 .selection-info{display:flex;align-items:center;gap:10px;padding-left:13px;border-left:1px solid var(--line)}
 .sel-count{font-size:13px;font-weight:600}
 .btn-download{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:9px;font-size:13px;font-weight:600}
+.btn-edit-sel{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;transition:background .12s}
+.btn-edit-sel:hover{background:var(--surface-2)}
 .control{display:flex;align-items:center;gap:7px}
 .control-label{font-size:12.5px;color:var(--muted)}
 
@@ -373,14 +375,71 @@ a{color:inherit}
 .lb-actions{display:flex;gap:8px}
 .btn-lb-download{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:9px;font-weight:600}
 .btn-lb-vendor{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;height:38px;border-radius:9px;font-weight:500}
-.btn-add-folder{height:38px;border-radius:9px;font-weight:500}
-.add-popover{position:absolute;left:14px;right:14px;bottom:60px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;max-height:236px;overflow:auto;z-index:5;animation:folioIn .12s ease}
-.add-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--ink);transition:background .12s}
-.add-item:hover{background:var(--surface-2)}
-.add-check{color:var(--accent);display:flex}
-.add-empty{padding:10px;font-size:12.5px;color:var(--muted)}
+.btn-lb-edit{height:38px;border-radius:9px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:7px}
 .lb-close{position:absolute;right:14px;top:14px;width:34px;height:34px;border-radius:50%;border:none;background:var(--surface);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:10;transition:background .12s}
 .lb-close:hover{background:var(--surface-2)}
+
+/* ===========================================================================
+   EDIT MODAL (single + bulk) — design/folio-mockup.dc.html editOpen block
+   ========================================================================== */
+.edit-overlay{position:fixed;inset:0;z-index:70;background:var(--overlay);display:flex;align-items:center;justify-content:center;padding:28px;animation:lbIn .15s ease}
+.edit-modal{position:relative;width:100%;max-width:468px;max-height:calc(100vh - 56px);display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 80px -20px rgba(0,0,0,.6);overflow:hidden;animation:folioIn .16s ease}
+.edit-head{padding:22px 24px 0;flex-shrink:0}
+.edit-title{margin:0;font-family:'Newsreader',serif;font-weight:500;font-size:22px;letter-spacing:-.01em}
+.edit-subtitle{margin-top:5px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);word-break:break-all}
+.edit-body{flex:1;overflow-y:auto;padding:18px 24px 6px}
+.edit-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.edit-eyebrow.cols{margin-bottom:10px}
+.edit-sep{height:1px;background:var(--line);margin:18px 0}
+.edit-list{display:flex;flex-direction:column;gap:1px}
+.edit-empty{padding:6px 10px;font-size:12.5px;color:var(--muted)}
+
+/* Single — vendor radio rows */
+.edit-vrow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background .12s}
+.edit-vrow:hover{background:var(--surface-2)}
+.edit-radio{position:relative;width:17px;height:17px;border-radius:50%;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)}
+.edit-radio-dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.edit-vdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.edit-vname{flex:1;font-size:13.5px;color:var(--ink)}
+
+/* Single — collection checkbox rows */
+.edit-crow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background .12s}
+.edit-crow:hover{background:var(--surface-2)}
+.edit-cbox{position:relative;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--field)}
+.edit-cbox-fill{position:absolute;inset:-1.5px;border-radius:5px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-contrast)}
+.edit-cname{flex:1;font-size:13.5px;color:var(--ink)}
+
+/* Bulk — vendor select */
+.edit-select-wrap{position:relative}
+.edit-select{appearance:none;-webkit-appearance:none;width:100%;height:40px;padding:0 32px 0 12px;background:var(--field);border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);font-size:13.5px;cursor:pointer;outline:none}
+.edit-select-chevron{position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);display:flex}
+
+/* Inline add rows (vendor + collection) */
+.edit-inline{display:flex;gap:8px;margin-top:9px;padding-top:11px;border-top:1px dashed var(--line)}
+.edit-inline.cols{margin-top:11px}
+.edit-inline-input{flex:1;min-width:0;height:36px;padding:0 11px;background:var(--field);border:1px solid var(--line-strong);border-radius:8px;outline:none;font-size:13px;color:var(--ink)}
+.edit-inline-add{height:36px;padding:0 14px;background:var(--surface-2);border:1px solid var(--line-strong);color:var(--ink);border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer;white-space:nowrap;transition:background .12s}
+.edit-inline-add:hover{background:var(--line)}
+
+/* Bulk — collection tri-state rows */
+.edit-bulk-list{display:flex;flex-direction:column;gap:9px}
+.edit-bulk-crow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.edit-bulk-cinfo{min-width:0}
+.edit-bulk-cname{font-size:13.5px;color:var(--ink)}
+.edit-bulk-chint{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:1px}
+.edit-pills{display:flex;gap:5px;flex-shrink:0}
+.edit-pill{height:28px;padding:0 12px;border-radius:8px;border:1px solid var(--line-strong);background:var(--field);color:var(--ink-soft);font-size:12px;font-weight:600;cursor:pointer}
+.edit-pill.on-none{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.edit-pill.on-add{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
+.edit-pill.on-remove{background:#bb4a32;color:#fff;border-color:#bb4a32}
+
+/* Footer + close */
+.edit-foot{flex-shrink:0;border-top:1px solid var(--line);padding:14px 24px;display:flex;gap:10px;justify-content:flex-end}
+.edit-cancel{height:40px;padding:0 16px;background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:10px;font-weight:500;cursor:pointer;transition:background .12s}
+.edit-cancel:hover{background:var(--surface-2)}
+.edit-save{height:40px;padding:0 18px;border-radius:10px;font-weight:600}
+.edit-close{position:absolute;right:14px;top:14px;width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;transition:filter .12s}
+.edit-close:hover{filter:brightness(.95)}
 
 /* ===========================================================================
    TOAST

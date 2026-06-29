@@ -8,6 +8,7 @@ import * as api from "./api.js";
 import { mountLibrary, loadReference } from "./gallery.js";
 import { mountSenders } from "./senders.js";
 import "./lightbox.js"; // self-registers its store subscription + key handlers
+import "./edit.js"; // self-registers the Edit modal (single + bulk)
 
 const THEME_KEY = "folio.theme";
 

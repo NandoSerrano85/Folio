@@ -46,6 +46,10 @@ export const state = {
   // lightbox: null or { index } where index is a GLOBAL index into the
   // current filtered result set (0..total-1)
   lightbox: null,
+
+  // edit modal: null or { mode:'single'|'bulk', ids:[imageId,...] }. edit.js
+  // owns the modal's working state internally; this key only gates open/close.
+  edit: null,
 };
 
 const listeners = new Set();

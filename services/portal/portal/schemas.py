@@ -136,6 +136,14 @@ class FolderImagesAdd(BaseModel):
     image_ids: list[int] = Field(default_factory=list)
 
 
+class FolderImagesRemove(BaseModel):
+    image_ids: list[int] = Field(default_factory=list)
+
+
+class FolderImagesRemoveResponse(BaseModel):
+    removed: int
+
+
 class FolderOut(BaseModel):
     id: int
     name: str
@@ -285,6 +293,8 @@ __all__ = [
     "FolderCreate",
     "FolderUpdate",
     "FolderImagesAdd",
+    "FolderImagesRemove",
+    "FolderImagesRemoveResponse",
     "FolderOut",
     "SenderOut",
     "DiscoveredSenderOut",
