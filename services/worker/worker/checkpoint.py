@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from folio_core.logging import get_logger
@@ -111,11 +111,36 @@ def increment_counts(
     skipped: int = 0,
     failed: int = 0,
 ) -> None:
-    """Bump the per-run progress counters in place."""
-    run.items_seen = (run.items_seen or 0) + seen
-    run.items_imported = (run.items_imported or 0) + imported
-    run.items_skipped = (run.items_skipped or 0) + skipped
-    run.items_failed = (run.items_failed or 0) + failed
+    """Atomically bump the per-run progress counters.
+
+    Uses a SQL-side ``col = col + delta`` UPDATE rather than a Python
+    read-modify-write, so concurrent per-file worker transactions cannot lose
+    increments (which would undercount and confuse reconciliation). Falls back
+    to in-place mutation only if ``run`` is detached from a session.
+    """
+    if run is None:
+        return
+    session = Session.object_session(run)
+    if session is None:
+        run.items_seen = (run.items_seen or 0) + seen
+        run.items_imported = (run.items_imported or 0) + imported
+        run.items_skipped = (run.items_skipped or 0) + skipped
+        run.items_failed = (run.items_failed or 0) + failed
+        return
+    session.execute(
+        update(IngestRun)
+        .where(IngestRun.id == run.id)
+        .values(
+            items_seen=func.coalesce(IngestRun.items_seen, 0) + seen,
+            items_imported=func.coalesce(IngestRun.items_imported, 0) + imported,
+            items_skipped=func.coalesce(IngestRun.items_skipped, 0) + skipped,
+            items_failed=func.coalesce(IngestRun.items_failed, 0) + failed,
+        )
+    )
+    # Drop the now-stale in-memory values so a later read re-fetches.
+    session.expire(
+        run, ["items_seen", "items_imported", "items_skipped", "items_failed"]
+    )
 
 
 def append_error(

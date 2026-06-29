@@ -139,6 +139,28 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ #
+    # Drive ingestion concurrency
+    # ------------------------------------------------------------------ #
+    drive_sync_concurrency: int = Field(
+        default=4,
+        description=(
+            "How many Drive files to download + ingest in parallel during a "
+            "sync. The worker clamps this to 1..8. Keep it small on 8 GB RAM: "
+            "each in-flight file holds its full bytes in memory while it is "
+            "hashed and copied into the library, and higher values also push "
+            "harder against Drive's per-user rate limits."
+        ),
+    )
+    drive_request_timeout_seconds: int = Field(
+        default=120,
+        description=(
+            "Socket timeout (seconds) for Drive API requests. Bounds a stalled "
+            "download so it raises (then retries/fails) instead of hanging a "
+            "worker — and, under concurrency, the whole page join — forever."
+        ),
+    )
+
+    # ------------------------------------------------------------------ #
     # Vendor browser (Playwright/Chromium) — RAM-constrained, off-hours only
     # ------------------------------------------------------------------ #
     browser_enabled: bool = Field(

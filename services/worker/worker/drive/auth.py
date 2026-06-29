@@ -14,6 +14,7 @@ back the authorization code the operator copies from the browser's address bar
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 from sqlalchemy import select
@@ -27,6 +28,11 @@ from folio_core.models import Account, ProviderEnum
 logger = get_logger("worker.drive.auth")
 
 _DEFAULT_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+
+# Serializes the credential refresh + ``save_token`` write below. Drive ingestion
+# builds a service per worker thread; without this lock two threads refreshing at
+# once could interleave their writes and corrupt the encrypted token file on disk.
+_token_refresh_lock = threading.Lock()
 
 
 def _token_ref(account_email: str) -> str:
@@ -150,17 +156,28 @@ def build_drive_service(account_email: str, token_ref: str | None = None):
 
     if not creds.valid:
         if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            # Persist the refreshed material (handles token rotation).
-            save_token(ref, creds.to_json())
-            logger.info("drive.auth.token_refreshed email=%s", account_email)
+            # Guard refresh + persist as a unit so concurrent worker-thread
+            # builds cannot interleave their writes and corrupt the token file.
+            with _token_refresh_lock:
+                creds.refresh(Request())
+                # Persist the refreshed material (handles token rotation).
+                save_token(ref, creds.to_json())
+                logger.info("drive.auth.token_refreshed email=%s", account_email)
         elif not creds.refresh_token:
             raise RuntimeError(
                 f"Stored Drive token for {account_email!r} has no refresh token; "
                 f"re-run `worker auth-drive --account {account_email}`."
             )
 
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    # Build with an explicit socket timeout so a stalled Drive request raises
+    # (then tenacity retries / the file is failed) instead of hanging a worker
+    # thread — and, under concurrency, the whole page join — indefinitely.
+    import httplib2
+    from google_auth_httplib2 import AuthorizedHttp
+
+    timeout = max(10, settings.drive_request_timeout_seconds)
+    authed_http = AuthorizedHttp(creds, http=httplib2.Http(timeout=timeout))
+    return build("drive", "v3", http=authed_http, cache_discovery=False)
 
 
 __all__ = ["run_drive_auth", "build_drive_service"]

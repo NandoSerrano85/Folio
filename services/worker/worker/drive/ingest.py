@@ -22,6 +22,11 @@ Robustness
 * Page tokens are checkpointed into ``ingest_runs`` after each page for resume.
 * Each file is its own transaction; one failure never aborts the run.
 * Chunked download via ``MediaIoBaseDownload`` (bounded memory per file).
+* Within a page, files are downloaded + ingested concurrently through a bounded
+  ``ThreadPoolExecutor`` (``DRIVE_SYNC_CONCURRENCY``, clamped 1..8). Listing stays
+  sequential in the main thread; the page token is checkpointed only after every
+  file in the page has finished, so resume semantics are preserved. Each worker
+  thread uses its OWN Drive service (httplib2 is not thread-safe).
 
 Date semantics: ``source_date = createdTime`` with origin ``drive_created``.
 """
@@ -30,6 +35,8 @@ from __future__ import annotations
 
 import io
 import logging
+import threading
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -84,6 +91,42 @@ _CHANGES_FIELDS = (
 )
 
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+_MAX_CONCURRENCY = 8  # Hard ceiling regardless of configured value (8 GB RAM).
+
+
+# --------------------------------------------------------------------------- #
+# Per-thread Drive client
+# --------------------------------------------------------------------------- #
+# The googleapiclient Drive service wraps an httplib2.Http which is NOT
+# thread-safe, so a single service object cannot be shared across worker
+# threads. Each worker thread lazily builds and caches its OWN service here.
+_thread_local = threading.local()
+
+
+def _thread_service(account: Account):
+    """Return this thread's Drive service, building it lazily on first use.
+
+    The token is pre-refreshed once in the main thread before the pool starts
+    (see ``_sync_account``), so these per-thread builds load an already-valid
+    token and do not each trigger a refresh.
+    """
+    cached = getattr(_thread_local, "service", None)
+    cached_email = getattr(_thread_local, "service_account", None)
+    if cached is None or cached_email != account.email:
+        cached = build_drive_service(account.email, account.token_ref)
+        _thread_local.service = cached
+        _thread_local.service_account = account.email
+    return cached
+
+
+def _clamp_concurrency(value: int) -> int:
+    """Clamp the configured concurrency into the safe 1..8 range."""
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        value = 1
+    return max(1, min(value, _MAX_CONCURRENCY))
 
 
 # --------------------------------------------------------------------------- #
@@ -204,8 +247,20 @@ def _download_file(service, file_id: str) -> bytes:
 # --------------------------------------------------------------------------- #
 # Folder-path resolution (memoized per process run)
 # --------------------------------------------------------------------------- #
-def _resolve_folder_path(service, file_meta: dict, cache: dict[str, dict]) -> str | None:
-    """Walk ``parents`` up to the root, building a ``A/B/C`` folder path."""
+def _resolve_folder_path(
+    service,
+    file_meta: dict,
+    cache: dict[str, dict],
+    cache_lock: threading.Lock,
+) -> str | None:
+    """Walk ``parents`` up to the root, building a ``A/B/C`` folder path.
+
+    The ``cache`` is shared across worker threads; ``cache_lock`` guards only the
+    dict read/write, never the ``_get_file_meta`` network call (holding it across
+    the network would serialize all threads). A redundant parent fetch by two
+    threads racing the same uncached folder is harmless — the dict just gets the
+    same value written twice.
+    """
     parents = file_meta.get("parents")
     if not parents:
         return None
@@ -216,12 +271,14 @@ def _resolve_folder_path(service, file_meta: dict, cache: dict[str, dict]) -> st
     while current and current not in seen and depth < 25:
         seen.add(current)
         depth += 1
-        meta = cache.get(current)
+        with cache_lock:
+            meta = cache.get(current)
         if meta is None:
             meta = _get_file_meta(service, current, "id,name,parents")
             if meta is None:
                 break
-            cache[current] = meta
+            with cache_lock:
+                cache[current] = meta
         name = meta.get("name")
         if name:
             parts.append(name)
@@ -319,13 +376,18 @@ def _already_imported(session, account_id: int, file_id: str) -> bool:
 # Per-file handling
 # --------------------------------------------------------------------------- #
 def _handle_file(
-    service,
     account: Account,
     run_id: int,
     file_meta: dict,
     folder_cache: dict[str, dict],
+    folder_cache_lock: threading.Lock,
 ) -> None:
-    """Process a single Drive image file: skip-if-known, else download + ingest."""
+    """Process a single Drive image file: skip-if-known, else download + ingest.
+
+    Safe to run from a worker thread: it uses this thread's OWN Drive service,
+    opens its own short DB transactions, and isolates per-file failures so one
+    bad file never aborts the page or the run.
+    """
     file_id = file_meta.get("id")
     name = file_meta.get("name")
     mime = file_meta.get("mimeType")
@@ -333,6 +395,12 @@ def _handle_file(
         return
 
     try:
+        # Per-thread Drive client (httplib2 is not thread-safe -> never shared).
+        # Built INSIDE the try so a bad-token/build failure counts as a per-file
+        # failure (and is logged) instead of escaping uncounted and leaving the
+        # run falsely "completed".
+        service = _thread_service(account)
+
         # Cheap idempotency pre-check: avoid downloading already-imported files.
         with session_scope() as session:
             already = _already_imported(session, account.id, file_id)
@@ -345,7 +413,9 @@ def _handle_file(
         modified_time = parse_rfc3339(file_meta.get("modifiedTime"))
         source_date = created_time or modified_time or datetime.now(timezone.utc)
         source_fields = {
-            "drive_folder_path": _resolve_folder_path(service, file_meta, folder_cache),
+            "drive_folder_path": _resolve_folder_path(
+                service, file_meta, folder_cache, folder_cache_lock
+            ),
             "drive_created_time": created_time,
             "drive_modified_time": modified_time,
             "drive_owner": _owner_str(file_meta),
@@ -401,14 +471,62 @@ def _run(session, run_id: int):
 # --------------------------------------------------------------------------- #
 # Scan drivers
 # --------------------------------------------------------------------------- #
-def _full_sync(service, account: Account, run_id: int) -> None:
-    folder_cache: dict[str, dict] = {}
+def _process_page(
+    executor: ThreadPoolExecutor,
+    account: Account,
+    run_id: int,
+    files: list[dict],
+    folder_cache: dict[str, dict],
+    folder_cache_lock: threading.Lock,
+) -> None:
+    """Download + ingest one page's image files concurrently, then WAIT.
+
+    Submits one ``_handle_file`` task per file to the bounded pool and blocks on
+    every future before returning, so:
+
+    * at most ``max_workers`` files are downloaded / held in memory at once
+      (queued tasks hold only small metadata dicts, not bytes), and
+    * the caller can safely checkpoint the page token only after the whole page
+      has been fully processed (resume semantics are preserved).
+
+    ``_handle_file`` swallows its own per-file errors, so ``.result()`` mainly
+    joins; it still re-raises anything that escaped that guard (e.g. a
+    thread-local service build failure), which we log without aborting the run.
+    """
+    futures: list[Future] = [
+        executor.submit(
+            _handle_file, account, run_id, file_meta, folder_cache, folder_cache_lock
+        )
+        for file_meta in files
+    ]
+    for future in futures:
+        try:
+            future.result()
+        except Exception:  # noqa: BLE001 - surface escaped worker errors, keep going
+            logger.exception("drive.page_worker_failed account=%s", account.email)
+
+
+def _full_sync(
+    service,
+    account: Account,
+    run_id: int,
+    executor: ThreadPoolExecutor,
+    folder_cache: dict[str, dict],
+    folder_cache_lock: threading.Lock,
+) -> None:
     page_token: str | None = None
     while True:
         resp = _files_list(service, query=_IMAGE_QUERY, page_token=page_token)
-        for file_meta in resp.get("files", []):
-            _handle_file(service, account, run_id, file_meta, folder_cache)
+        _process_page(
+            executor,
+            account,
+            run_id,
+            resp.get("files", []),
+            folder_cache,
+            folder_cache_lock,
+        )
         page_token = resp.get("nextPageToken")
+        # Checkpoint only after the page is fully ingested (resume-safe).
         with session_scope() as session:
             record_page_token(session, run_id, page_token)
         if not page_token:
@@ -416,14 +534,20 @@ def _full_sync(service, account: Account, run_id: int) -> None:
 
 
 def _incremental_sync(
-    service, account: Account, run_id: int, start_token: str
+    service,
+    account: Account,
+    run_id: int,
+    start_token: str,
+    executor: ThreadPoolExecutor,
+    folder_cache: dict[str, dict],
+    folder_cache_lock: threading.Lock,
 ) -> str | None:
     """Process the Drive changes feed from ``start_token``; return new cursor."""
-    folder_cache: dict[str, dict] = {}
     page_token: str | None = start_token
     new_cursor: str | None = None
     while page_token:
         resp = _changes_list(service, page_token=page_token)
+        files: list[dict] = []
         for change in resp.get("changes", []):
             if change.get("removed"):
                 continue
@@ -433,11 +557,12 @@ def _incremental_sync(
             mime = file_meta.get("mimeType") or ""
             if not mime.startswith("image/"):
                 continue
-            _handle_file(service, account, run_id, file_meta, folder_cache)
+            files.append(file_meta)
+        _process_page(executor, account, run_id, files, folder_cache, folder_cache_lock)
         if "newStartPageToken" in resp:
             new_cursor = resp["newStartPageToken"]
         next_token = resp.get("nextPageToken")
-        # Checkpoint the token a resume should continue from.
+        # Checkpoint the token a resume should continue from (page fully done).
         with session_scope() as session:
             record_page_token(session, run_id, next_token or new_cursor)
         page_token = next_token
@@ -448,6 +573,13 @@ def _incremental_sync(
 # Per-account orchestration
 # --------------------------------------------------------------------------- #
 def _sync_account(account: Account, *, full: bool) -> None:
+    concurrency = _clamp_concurrency(get_settings().drive_sync_concurrency)
+
+    # Build the main-thread Drive service up front. This also REFRESHES and
+    # re-persists the OAuth token once while still single-threaded, so the
+    # per-thread service builds inside the pool load an already-valid token and
+    # do not each trigger (and race) a refresh. This service is used only for
+    # the sequential LISTING calls; downloads use per-thread services.
     service = build_drive_service(account.email, account.token_ref)
 
     stored_cursor = _get_cursor(account.id)
@@ -467,28 +599,61 @@ def _sync_account(account: Account, *, full: bool) -> None:
         run_id = create_ingest_run(session, account.id, _RUN_KIND)
 
     logger.info(
-        "drive.sync.start account=%s mode=%s resume=%s",
+        "drive.sync.start account=%s mode=%s resume=%s concurrency=%s",
         account.email,
         "incremental" if use_incremental else "full",
         bool(resume_token and use_incremental),
+        concurrency,
     )
 
+    # One folder cache + lock and one pool shared across all pages of this scan.
+    folder_cache: dict[str, dict] = {}
+    folder_cache_lock = threading.Lock()
+
     try:
-        if use_incremental:
-            start_token = (resume_token or stored_cursor) or full_scan_cursor
-            if not start_token:
-                # No cursor at all -> behave like a full scan.
-                start_token = _get_start_page_token(service)
-                _full_sync(service, account, run_id)
-                _set_cursor(account.id, start_token, full=True)
+        # The pool is created once per account scan and torn down here on the way
+        # out (the ``with`` block shuts it down even on exception). Pages are
+        # joined inside ``_process_page``, so the pool is idle at scan boundaries.
+        with ThreadPoolExecutor(
+            max_workers=concurrency, thread_name_prefix="drive-ingest"
+        ) as executor:
+            if use_incremental:
+                start_token = (resume_token or stored_cursor) or full_scan_cursor
+                if not start_token:
+                    # No cursor at all -> behave like a full scan.
+                    start_token = _get_start_page_token(service)
+                    _full_sync(
+                        service,
+                        account,
+                        run_id,
+                        executor,
+                        folder_cache,
+                        folder_cache_lock,
+                    )
+                    _set_cursor(account.id, start_token, full=True)
+                else:
+                    new_cursor = _incremental_sync(
+                        service,
+                        account,
+                        run_id,
+                        start_token,
+                        executor,
+                        folder_cache,
+                        folder_cache_lock,
+                    )
+                    if new_cursor:
+                        _set_cursor(account.id, new_cursor, full=False)
             else:
-                new_cursor = _incremental_sync(service, account, run_id, start_token)
-                if new_cursor:
-                    _set_cursor(account.id, new_cursor, full=False)
-        else:
-            _full_sync(service, account, run_id)
-            if full_scan_cursor:
-                _set_cursor(account.id, full_scan_cursor, full=True)
+                _full_sync(
+                    service,
+                    account,
+                    run_id,
+                    executor,
+                    folder_cache,
+                    folder_cache_lock,
+                )
+                if full_scan_cursor:
+                    _set_cursor(account.id, full_scan_cursor, full=True)
     except Exception:
         logger.exception("drive.sync.account_error account=%s", account.email)
         with session_scope() as session:
