@@ -17,11 +17,19 @@ it back, and we exchange it for tokens.
 
 from __future__ import annotations
 
+import os
 from urllib.parse import parse_qs, urlparse
 
 from folio_core.logging import get_logger
 
 logger = get_logger("worker.google_oauth")
+
+# Google returns a token scoped to ALL scopes already granted to this client for
+# the account — e.g. a Drive grant from an earlier `auth-drive` reappears when
+# you later `auth-gmail`. oauthlib treats that "scope has changed" as a hard
+# error unless relaxed. We authorize ONE provider's scope per token and the
+# superset Google returns is harmless (read-only), so relax the check.
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 # Loopback redirect — Desktop clients accept any http://localhost[:port]; no
 # server actually runs here, the operator copies the code out of the URL.
@@ -35,10 +43,12 @@ def run_console_consent(flow, *, label: str) -> object:
     ``label`` is shown in the prompt (e.g. ``"Drive"`` / ``"Gmail"``).
     """
     flow.redirect_uri = LOOPBACK_REDIRECT
+    # NOTE: no include_granted_scopes — we keep each provider's token scoped to
+    # just that provider; merging Drive+Gmail into one token triggers oauthlib's
+    # scope-change error (also relaxed above as a belt-and-suspenders).
     auth_url, _state = flow.authorization_url(
         prompt="consent",
         access_type="offline",
-        include_granted_scopes="true",
     )
     print(
         f"\n=== Folio {label} authorization (READ-ONLY) ===\n\n"
