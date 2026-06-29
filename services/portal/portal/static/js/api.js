@@ -179,6 +179,54 @@ export async function deleteVendor(id) {
   return req("DELETE", `/api/vendors/${id}`);
 }
 
+// ------------------------------------------------------- collection rules -- //
+// Auto-filing rules: a target collection (folder_id) + a list of ANDed
+// conditions {field, op, value}. Matching images are filed into the folder on
+// every sync; /apply files already-matching images on demand. The server
+// validates conditions (422 on bad field/op/value). In DEMO mode (no backend)
+// the GET resolves to an empty list and mutations resolve to benign stubs so
+// the screen still renders.
+export async function collectionRules() {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.collectionRules) return d.api.collectionRules();
+    return [];
+  }
+  return req("GET", "/api/collection-rules");
+}
+export async function createCollectionRule(payload) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.createCollectionRule) return d.api.createCollectionRule(payload);
+    return { id: Date.now(), match_count: 0, ...payload };
+  }
+  return req("POST", "/api/collection-rules", payload);
+}
+export async function updateCollectionRule(id, patch) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.updateCollectionRule) return d.api.updateCollectionRule(id, patch);
+    return { id, ...patch };
+  }
+  return req("PATCH", `/api/collection-rules/${id}`, patch);
+}
+export async function deleteCollectionRule(id) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.deleteCollectionRule) return d.api.deleteCollectionRule(id);
+    return { status: "ok" };
+  }
+  return req("DELETE", `/api/collection-rules/${id}`);
+}
+export async function applyCollectionRules() {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.applyCollectionRules) return d.api.applyCollectionRules();
+    return { applied: {}, total_added: 0 };
+  }
+  return req("POST", "/api/collection-rules/apply", {});
+}
+
 // -------------------------------------------------------------- accounts -- //
 export async function accounts() {
   if (DEMO) return (await demo()).api.accounts();

@@ -48,6 +48,7 @@ _ROUTER_MODULES = (
     "accounts",
     "download",
     "stats",
+    "collection_rules",
 )
 
 

@@ -321,6 +321,9 @@ class Folder(Base):
     image_links: Mapped[list["FolderImage"]] = relationship(
         back_populates="folder", cascade="all, delete-orphan"
     )
+    rules: Mapped[list["CollectionRule"]] = relationship(
+        back_populates="folder", cascade="all, delete-orphan"
+    )
 
 
 class FolderImage(Base):
@@ -340,6 +343,45 @@ class FolderImage(Base):
 
     folder: Mapped["Folder"] = relationship(back_populates="image_links")
     image: Mapped["Image"] = relationship(back_populates="folder_links")
+
+
+class CollectionRule(Base):
+    """An auto-filing rule: a target folder + ANDed conditions.
+
+    Each enabled rule auto-adds every image matching ALL of its ``conditions``
+    to ``folder_id``. ``conditions`` is a JSONB list of ``{field, op, value}``
+    dicts (see ``folio_core.rules`` for the supported fields/ops and the
+    SQLAlchemy match clause). An empty conditions list matches NOTHING — it is
+    never applied (it must not file the entire library). An image can match
+    many rules and so be filed into many folders; membership is idempotent via
+    the ``folder_images`` primary key.
+    """
+
+    __tablename__ = "collection_rules"
+    __table_args__ = (
+        Index("ix_collection_rules_folder_id", "folder_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    folder_id: Mapped[int] = mapped_column(
+        ForeignKey("folders.id", ondelete="CASCADE"), nullable=False
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    conditions: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    folder: Mapped["Folder"] = relationship(back_populates="rules")
 
 
 class SyncState(Base):
@@ -537,6 +579,7 @@ __all__ = [
     "Sender",
     "Folder",
     "FolderImage",
+    "CollectionRule",
     "SyncState",
     "IngestRun",
     "VendorCredential",

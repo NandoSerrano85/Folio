@@ -188,6 +188,15 @@ def derive_vendors(
 
 
 # --------------------------------------------------------------------------- #
+# apply-rules (auto-file images into folders via collection rules)
+# --------------------------------------------------------------------------- #
+@app.command("apply-rules")
+def apply_rules() -> None:
+    """Apply all enabled collection rules, auto-filing matching images."""
+    _run_apply_collection_rules()
+
+
+# --------------------------------------------------------------------------- #
 # assist (human-in-the-loop resolution of un-automatable vendor emails)
 # --------------------------------------------------------------------------- #
 @app.command("assist-list")
@@ -249,6 +258,13 @@ def schedule() -> None:
         from worker.drive.ingest import run_drive_sync
 
         _safe("sync-drive", lambda: run_drive_sync(None, False))
+        # Post-sync auto-tagging: vendors BEFORE rules (rules can match vendor).
+        # Each pass is _safe-wrapped so a failure is logged and never kills the
+        # scheduler, and both participate in the sync_on_startup immediate run.
+        if settings.auto_derive_vendors:
+            _safe("auto-derive-vendors", _run_auto_derive_vendors)
+        if settings.auto_apply_collection_rules:
+            _safe("apply-rules", _run_apply_collection_rules)
 
     def _job_discover() -> None:
         from worker.gmail.discover import run_discover_senders
@@ -281,6 +297,10 @@ def schedule() -> None:
         from worker.gmail.sync import run_gmail_sync
 
         _safe("sync-gmail", lambda: run_gmail_sync(None))
+        # Email vendors are set during ingestion, so only the rules pass runs
+        # here (no derive-vendors). _safe-wrapped to never kill the scheduler.
+        if settings.auto_apply_collection_rules:
+            _safe("apply-rules", _run_apply_collection_rules)
 
     # Optionally fire the first sync-drive + discover ~10s after boot instead of
     # waiting a whole interval. First run does a FULL Drive backfill (no cursor
@@ -357,6 +377,26 @@ def schedule() -> None:
 # --------------------------------------------------------------------------- #
 # Internal helpers
 # --------------------------------------------------------------------------- #
+def _run_apply_collection_rules() -> None:
+    """Run apply_collection_rules in a session and log per-rule + total counts."""
+    from folio_core.db import session_scope
+    from folio_core.rules import apply_collection_rules
+
+    with session_scope() as session:
+        added = apply_collection_rules(session)
+    total = sum(added.values())
+    for rule_id, count in added.items():
+        logger.info("apply-rules.rule rule_id=%s added=%d", rule_id, count)
+    logger.info("apply-rules.done rules=%d total_added=%d", len(added), total)
+
+
+def _run_auto_derive_vendors() -> None:
+    """Auto-derive vendors for unmapped sources (post-sync auto-tagging pass)."""
+    from worker.derive_vendors import run_derive_vendors
+
+    run_derive_vendors(None, apply=True, only_unmapped=True)
+
+
 def _run_migrations() -> None:
     """Apply Alembic migrations to head using folio_core's config."""
     import os

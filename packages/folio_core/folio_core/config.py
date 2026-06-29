@@ -226,6 +226,24 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ #
+    # Auto post-sync passes
+    # ------------------------------------------------------------------ #
+    auto_derive_vendors: bool = Field(
+        default=True,
+        description=(
+            "Run derive-vendors automatically after each Drive sync so "
+            "freshly imported images get a vendor from their folder path."
+        ),
+    )
+    auto_apply_collection_rules: bool = Field(
+        default=True,
+        description=(
+            "Run the enabled collection rules automatically after each sync "
+            "so new images are auto-filed into their target folders."
+        ),
+    )
+
+    # ------------------------------------------------------------------ #
     # Database backups (pg_dump custom format)
     # ------------------------------------------------------------------ #
     backup_dir: Path = Field(

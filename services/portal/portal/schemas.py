@@ -152,6 +152,42 @@ class FolderOut(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Collection rules (auto-filing)
+# --------------------------------------------------------------------------- #
+class CollectionRuleCondition(BaseModel):
+    """One ANDed condition. Field/op/value are validated server-side against
+    ``folio_core.rules.validate_conditions`` before persisting."""
+
+    field: str = Field(min_length=1, max_length=64)
+    op: str = Field(min_length=1, max_length=32)
+    value: str | int
+
+
+class CollectionRuleCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=256)
+    folder_id: int
+    enabled: bool = True
+    conditions: list[CollectionRuleCondition] = Field(default_factory=list)
+
+
+class CollectionRuleUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=256)
+    folder_id: int | None = None
+    enabled: bool | None = None
+    conditions: list[CollectionRuleCondition] | None = None
+
+
+class CollectionRuleOut(BaseModel):
+    id: int
+    name: str | None = None
+    folder_id: int
+    folder_name: str | None = None
+    enabled: bool = True
+    conditions: list[CollectionRuleCondition] = Field(default_factory=list)
+    match_count: int | None = None
+
+
+# --------------------------------------------------------------------------- #
 # Senders
 # --------------------------------------------------------------------------- #
 class SenderOut(BaseModel):
@@ -296,6 +332,10 @@ __all__ = [
     "FolderImagesRemove",
     "FolderImagesRemoveResponse",
     "FolderOut",
+    "CollectionRuleCondition",
+    "CollectionRuleCreate",
+    "CollectionRuleUpdate",
+    "CollectionRuleOut",
     "SenderOut",
     "DiscoveredSenderOut",
     "SenderCreate",
