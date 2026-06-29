@@ -319,7 +319,7 @@ upserts the `accounts` row. Repeat for all six.
 Verify tokens landed:
 
 ```bash
-docker compose run --rm worker python -c "import os; print(sorted(os.listdir('/data/tokens')))"
+docker compose run --rm --no-deps --entrypoint sh worker -c 'ls -1 /data/tokens'
 ```
 
 ---

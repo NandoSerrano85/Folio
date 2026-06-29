@@ -96,7 +96,7 @@ docker compose run --rm worker auth-gmail --account g1@x.com   # make auth-gmail
 Verify tokens landed:
 
 ```bash
-docker compose run --rm worker python -c "import os; print(sorted(os.listdir('/data/tokens')))"
+docker compose run --rm --no-deps --entrypoint sh worker -c 'ls -1 /data/tokens'
 ```
 
 ---
