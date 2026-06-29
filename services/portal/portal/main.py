@@ -22,7 +22,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -150,10 +150,10 @@ def create_app() -> FastAPI:
         return JSONResponse({"status": "ok"})
 
     @app.get("/", response_class=HTMLResponse)
-    def index(request) -> HTMLResponse:  # type: ignore[no-untyped-def]
+    def index(request: Request) -> HTMLResponse:
         index_file = TEMPLATES_DIR / "index.html"
         if index_file.exists():
-            return templates.TemplateResponse("index.html", {"request": request})
+            return templates.TemplateResponse(request, "index.html")
         # Minimal placeholder until the Phase-2 frontend ships index.html.
         return HTMLResponse(
             "<!doctype html><title>Folio</title>"

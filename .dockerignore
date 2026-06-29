@@ -1,0 +1,38 @@
+# Build context is the repo root for BOTH images (compose `context: .`), so this
+# repo-root .dockerignore is the one Docker honors. Keep secrets, local runtime
+# state, and the offline design preview OUT of the images.
+
+# VCS / local tooling
+.git
+.github
+
+# Secrets & local runtime state — never bake these into an image
+.env
+*.local.env
+secrets/
+data/
+media/
+thumbnails/
+
+# Offline design-parity preview — client-only (window.FOLIO_DEMO), must not be
+# web-reachable in production. In prod the app never imports demo-data.js.
+services/portal/portal/static/demo.html
+services/portal/portal/static/js/demo-data.js
+
+# Python / tooling cruft
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Transient secret-generator program from scripts/bootstrap.sh
+.bootstrap-gen.*.py
