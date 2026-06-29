@@ -5,17 +5,15 @@ stored ENCRYPTED on disk via ``folio_core.crypto`` (Fernet), keyed by a
 provider-qualified reference so a Drive token never collides with a Gmail token
 for the same Google identity.
 
-Headless / NAS note: ``run_drive_auth`` runs a local redirect server bound to a
-configurable host/port (``FOLIO_OAUTH_BIND_HOST`` / ``FOLIO_OAUTH_PORT``,
-default ``0.0.0.0:8765``) and prints the consent URL instead of opening a
-browser. If that fails it falls back to an interactive paste-the-code flow
-(works under ``docker exec -it``).
+Headless / NAS note: ``run_drive_auth`` prints the Google consent URL and reads
+back the authorization code the operator copies from the browser's address bar
+(a loopback redirect — no reachable callback server needed). See
+``worker.google_oauth``.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from sqlalchemy import select
@@ -29,7 +27,6 @@ from folio_core.models import Account, ProviderEnum
 logger = get_logger("worker.drive.auth")
 
 _DEFAULT_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
-_OOB_REDIRECT = "urn:ietf:wg:oauth:2.0:oob"
 
 
 def _token_ref(account_email: str) -> str:
@@ -46,48 +43,13 @@ def _drive_scopes(settings: Settings) -> list[str]:
 def _run_consent(flow) -> object:
     """Drive the OAuth consent step and return fetched credentials.
 
-    Prefers a local redirect server (no browser auto-open); falls back to an
-    interactive console paste flow for fully headless shells.
+    Uses the headless copy-the-URL / paste-the-code flow (works when the browser
+    is on a different machine than the container — the NAS case). See
+    ``worker.google_oauth``.
     """
-    host = os.environ.get("FOLIO_OAUTH_BIND_HOST", "0.0.0.0")
-    try:
-        port = int(os.environ.get("FOLIO_OAUTH_PORT", "8765"))
-    except ValueError:
-        port = 8765
-    try:
-        return flow.run_local_server(
-            host=host,
-            port=port,
-            open_browser=False,
-            authorization_prompt_message=(
-                "\n=== Folio Drive authorization ===\n"
-                "Visit this URL in a browser to authorize (READ-ONLY Drive):\n\n"
-                "{url}\n"
-            ),
-            success_message=(
-                "Folio received the authorization. You may close this tab."
-            ),
-        )
-    except Exception as exc:  # noqa: BLE001 - fall back to manual paste flow
-        logger.warning(
-            "drive.auth.local_server_failed err=%s; falling back to console flow",
-            exc,
-        )
-        return _manual_consent(flow)
+    from worker.google_oauth import run_console_consent
 
-
-def _manual_consent(flow) -> object:
-    """Interactive out-of-band style consent: print URL, read pasted code."""
-    flow.redirect_uri = _OOB_REDIRECT
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
-    print(
-        "\n=== Folio Drive authorization (manual) ===\n"
-        "Open this URL, grant access, then paste the resulting code below:\n\n"
-        f"{auth_url}\n"
-    )
-    code = input("Authorization code: ").strip()
-    flow.fetch_token(code=code)
-    return flow.credentials
+    return run_console_consent(flow, label="Drive")
 
 
 def _fetch_identity(creds) -> tuple[str | None, str | None]:

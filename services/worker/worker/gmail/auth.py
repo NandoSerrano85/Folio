@@ -78,19 +78,11 @@ def run_gmail_auth(account_email: str) -> None:
     logger.info("gmail.auth.start account=%s scopes=%s", account_email, scopes)
 
     flow = InstalledAppFlow.from_client_secrets_file(str(secrets_file), scopes=scopes)
-    # ``run_local_server`` is the supported installed-app flow (run_console was
-    # removed upstream). On a headless NAS the operator copies the printed URL
-    # into a browser; the loopback redirect completes the handshake.
-    creds = flow.run_local_server(
-        port=0,
-        open_browser=False,
-        prompt="consent",
-        access_type="offline",
-        authorization_prompt_message=(
-            "Open this URL to authorize Folio (Gmail, read-only) for "
-            f"{account_email}:\n{{url}}"
-        ),
-    )
+    # Headless copy-the-URL / paste-the-code consent: the NAS has no browser, and
+    # run_local_server's localhost redirect can't reach the operator's laptop.
+    from worker.google_oauth import run_console_consent
+
+    creds = run_console_consent(flow, label=f"Gmail (read-only) for {account_email}")
 
     if not creds.refresh_token:
         logger.warning(
