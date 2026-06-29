@@ -55,7 +55,11 @@ def stamp_source_date(path: str | PathLike[str], dt: datetime) -> bool:
     fpath = str(Path(path))
     cmd = [
         binary,
-        "-overwrite_original",
+        # Write the temp file's bytes back into the ORIGINAL file rather than
+        # renaming a temp over it. The rename approach (-overwrite_original)
+        # fails on QNAP/SMB/ACL-backed media volumes with "Error renaming
+        # temporary file"; in-place copy-back preserves the inode and works.
+        "-overwrite_original_in_place",
         f"-DateTimeOriginal={stamp}",
         f"-CreateDate={stamp}",
         fpath,

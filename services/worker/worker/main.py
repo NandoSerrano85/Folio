@@ -134,6 +134,18 @@ def reconcile(
     run_reconcile(account)
 
 
+@app.command("restamp")
+def restamp(
+    account: str | None = typer.Option(
+        None, "--account", help="Limit to one account email (default: all)."
+    ),
+) -> None:
+    """Re-write EXIF source dates onto files already on disk (from the DB)."""
+    from worker.restamp import run_restamp
+
+    run_restamp(account)
+
+
 # --------------------------------------------------------------------------- #
 # assist (human-in-the-loop resolution of un-automatable vendor emails)
 # --------------------------------------------------------------------------- #
