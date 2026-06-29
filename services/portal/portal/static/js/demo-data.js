@@ -332,6 +332,10 @@ export const api = {
     });
     return delay({ applied, total_filed, total_vendored });
   },
+  async previewRuleCount(field, value, accountId) {
+    const account_id = accountId != null && accountId !== "" ? parseInt(accountId, 10) : null;
+    return delay({ match_count: ruleMatchCount({ field, value, account_id }) });
+  },
 
   async vendors() { return delay(VENDORS.map(({ sender, ...v }) => v)); },
 

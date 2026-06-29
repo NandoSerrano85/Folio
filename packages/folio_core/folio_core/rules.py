@@ -53,6 +53,7 @@ __all__ = [
     "SUPPORTED_FIELDS",
     "TEXT_FIELDS",
     "validate_rule",
+    "count_matches",
     "match_count",
     "apply_collection_rules",
 ]
@@ -175,16 +176,30 @@ def _match_clause(
 # --------------------------------------------------------------------------- #
 # Count
 # --------------------------------------------------------------------------- #
-def match_count(session: Session, rule: CollectionRule) -> int:
-    """Count the images matching ``rule``'s condition.
+def count_matches(
+    session: Session,
+    *,
+    field: str,
+    value: str | None = None,
+    account_id: int | None = None,
+) -> int:
+    """Count images matching a raw condition (``field`` + value/account_id).
 
-    Returns 0 for a rule whose condition is unusable (it matches nothing).
+    Powers the rules builder's live preview, before a rule is persisted.
+    Returns 0 for an unusable condition (it matches nothing).
     """
-    clause = _match_clause(rule.field, rule.value, rule.account_id)
+    clause = _match_clause(field, value, account_id)
     if clause is None:
         return 0
     stmt = select(func.count()).select_from(Image).where(clause)
     return int(session.execute(stmt).scalar_one())
+
+
+def match_count(session: Session, rule: CollectionRule) -> int:
+    """Count the images matching ``rule``'s condition (matches nothing -> 0)."""
+    return count_matches(
+        session, field=rule.field, value=rule.value, account_id=rule.account_id
+    )
 
 
 # --------------------------------------------------------------------------- #

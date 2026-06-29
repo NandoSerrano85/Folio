@@ -228,6 +228,16 @@ export async function applyCollectionRules() {
   return req("POST", "/api/collection-rules/apply", {});
 }
 
+// Live builder preview: how many images a DRAFT condition matches, pre-save.
+export async function previewRuleCount(field, value, accountId) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.previewRuleCount) return d.api.previewRuleCount(field, value, accountId);
+    return { match_count: 0 };
+  }
+  return req("GET", `/api/collection-rules/match-count${qs({ field, value, account_id: accountId })}`);
+}
+
 // -------------------------------------------------------------- accounts -- //
 export async function accounts() {
   if (DEMO) return (await demo()).api.accounts();

@@ -11,7 +11,7 @@
 // All rendering goes through el()/textContent, so API-provided names (vendors,
 // collections, accounts, and the user's own rule values) can never inject markup.
 
-import { el, clear, icons, vendorColor } from "./util.js";
+import { el, clear, icons, vendorColor, debounce } from "./util.js";
 import { state, toast } from "./state.js";
 import * as api from "./api.js";
 import { flattenFolders } from "./folders.js";
@@ -23,6 +23,37 @@ let rulesData = [];
 // Builder working state, kept at module scope so an in-progress rule survives a
 // re-render (e.g. toggling another rule) instead of being dropped.
 let draft = { field: "sender", value: "", accountId: "", vendorId: "", folderId: "" };
+
+// Live "Matches N now" preview for the draft condition (debounced).
+let draftMatches = null;
+let matchPreviewEl = null;
+let _previewToken = 0;
+
+function setPreview(n) {
+  if (!matchPreviewEl) return;
+  matchPreviewEl.textContent = typeof n === "number" ? `Matches ${n} now` : "";
+}
+
+// Ask the server how many images the in-progress condition WOULD match, before
+// the rule is saved. Debounced so typing doesn't spray queries; a token guards
+// against a slow response landing after the field/value changed again.
+const refreshDraftCount = debounce(async () => {
+  const token = ++_previewToken;
+  const f = draft.field;
+  let n = null;
+  try {
+    if (f === "account") {
+      const aid = parseInt(draft.accountId, 10);
+      if (aid) { const r = await api.previewRuleCount(f, null, aid); n = r && typeof r.match_count === "number" ? r.match_count : null; }
+    } else {
+      const v = (draft.value || "").trim();
+      if (v) { const r = await api.previewRuleCount(f, v, null); n = r && typeof r.match_count === "number" ? r.match_count : null; }
+    }
+  } catch (_) { n = null; }
+  if (token !== _previewToken) return; // superseded by a newer change
+  draftMatches = n;
+  setPreview(n);
+}, 320);
 
 const FIELD_OPTIONS = [
   { value: "sender", label: "Sender" },
@@ -121,7 +152,7 @@ function buildBuilder() {
   panel.appendChild(el("div", { class: "rule-builder-head", text: "New rule" }));
 
   // --- Row 1: condition (field + value/account) ---
-  const fieldSel = el("select", { class: "select", onChange: (e) => { draft.field = e.target.value; draft.value = ""; render(); } });
+  const fieldSel = el("select", { class: "select", onChange: (e) => { draft.field = e.target.value; draft.value = ""; draftMatches = null; render(); } });
   FIELD_OPTIONS.forEach((o) => {
     const opt = el("option", { value: o.value, text: o.label });
     if (o.value === draft.field) opt.selected = true;
@@ -131,7 +162,7 @@ function buildBuilder() {
 
   let valueCol;
   if (draft.field === "account") {
-    const accSel = el("select", { class: "select", onChange: (e) => { draft.accountId = e.target.value; } });
+    const accSel = el("select", { class: "select", onChange: (e) => { draft.accountId = e.target.value; refreshDraftCount(); } });
     const accounts = state.accountsList || [];
     if (!accounts.length) {
       accSel.appendChild(el("option", { value: "", text: "No accounts connected" }));
@@ -148,7 +179,7 @@ function buildBuilder() {
     const valInput = el("input", {
       class: "rule-input", placeholder: VALUE_PLACEHOLDER[draft.field] || "",
       value: draft.value,
-      onInput: (e) => { draft.value = e.target.value; },
+      onInput: (e) => { draft.value = e.target.value; refreshDraftCount(); },
       onKeyDown: (e) => { if (e.key === "Enter") submitRule(); },
     });
     valueCol = field(VALUE_LABEL[draft.field] || "Value", valInput, "grow");
@@ -175,12 +206,18 @@ function buildBuilder() {
 
   const addBtn = el("button", { class: "btn-primary btn-rule", text: "Add rule", onClick: submitRule });
 
+  matchPreviewEl = el("div", { class: "rule-spacer rule-draft-matches" });
   panel.appendChild(el("div", { class: "rule-row rule-row-actions" }, [
     field("Assign vendor", selectWrap(vendorSel), "w-assign"),
     field("Add to collection", selectWrap(folderSel), "w-assign"),
-    el("div", { class: "rule-spacer" }),
+    matchPreviewEl,
     el("div", { class: "rule-submit" }, [addBtn]),
   ]));
+
+  // Show the last known count immediately (no flicker on re-render), then
+  // recompute for the current draft condition.
+  setPreview(draftMatches);
+  refreshDraftCount();
 
   return panel;
 }

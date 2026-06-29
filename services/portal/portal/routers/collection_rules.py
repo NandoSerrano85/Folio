@@ -21,6 +21,7 @@ from folio_core.models import Account, CollectionRule, Folder, Vendor
 from folio_core.rules import (
     TEXT_FIELDS,
     apply_collection_rules,
+    count_matches,
     match_count,
     validate_rule,
 )
@@ -142,6 +143,20 @@ def list_rules(db: Session = Depends(get_db)) -> list[CollectionRuleOut]:
         _to_out(db, rule, account_name, vendor_name, folder_name)
         for rule, account_name, vendor_name, folder_name in rows
     ]
+
+
+@router.get("/match-count")
+def preview_match_count(
+    field: str,
+    value: str | None = None,
+    account_id: int | None = None,
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    """Live builder preview: how many images a DRAFT condition matches, before
+    it is saved. An unusable/empty condition matches nothing (returns 0). This
+    is a literal path, so it never collides with the ``/{rule_id}`` routes.
+    """
+    return {"match_count": count_matches(db, field=field, value=value, account_id=account_id)}
 
 
 @router.post("", response_model=CollectionRuleOut, status_code=status.HTTP_201_CREATED)
