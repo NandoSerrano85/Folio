@@ -282,6 +282,22 @@ def schedule() -> None:
 
         _safe("sync-gmail", lambda: run_gmail_sync(None))
 
+    # Optionally fire the first sync-drive + discover ~10s after boot instead of
+    # waiting a whole interval. First run does a FULL Drive backfill (no cursor
+    # yet); later restarts just do a quick incremental. reconcile/sync-gmail keep
+    # their normal cadence.
+    startup_kwargs: dict = {}
+    if settings.sync_on_startup:
+        from datetime import datetime, timedelta
+
+        try:
+            from zoneinfo import ZoneInfo
+
+            _now = datetime.now(ZoneInfo(settings.timezone))
+        except Exception:  # noqa: BLE001 - a bad tz name must not break startup
+            _now = datetime.now()
+        startup_kwargs["next_run_time"] = _now + timedelta(seconds=10)
+
     scheduler.add_job(
         _job_sync_drive,
         "interval",
@@ -289,6 +305,7 @@ def schedule() -> None:
         id="sync-drive",
         max_instances=1,
         coalesce=True,
+        **startup_kwargs,
     )
     scheduler.add_job(
         _job_discover,
@@ -297,6 +314,7 @@ def schedule() -> None:
         id="discover-senders",
         max_instances=1,
         coalesce=True,
+        **startup_kwargs,
     )
     scheduler.add_job(
         _job_reconcile,
@@ -320,7 +338,7 @@ def schedule() -> None:
 
     logger.info(
         "scheduler.start sync_drive=%smin discover=%smin reconcile=%smin "
-        "sync_gmail=%smin browser_enabled=%s offhours=%d-%d",
+        "sync_gmail=%smin browser_enabled=%s offhours=%d-%d sync_on_startup=%s",
         settings.sync_drive_interval_minutes,
         settings.discover_senders_interval_minutes,
         settings.reconcile_interval_minutes,
@@ -328,6 +346,7 @@ def schedule() -> None:
         settings.browser_enabled,
         settings.browser_offhours_start,
         settings.browser_offhours_end,
+        settings.sync_on_startup,
     )
     try:
         scheduler.start()

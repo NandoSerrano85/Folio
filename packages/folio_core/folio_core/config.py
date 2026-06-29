@@ -129,6 +129,14 @@ class Settings(BaseSettings):
             "inside the off-hours window and when browser_enabled is True."
         ),
     )
+    sync_on_startup: bool = Field(
+        default=True,
+        description=(
+            "Run sync-drive + discover-senders ~10s after the scheduler starts "
+            "instead of waiting a full interval. First run is a full Drive "
+            "backfill (no cursor yet); later restarts do a quick incremental."
+        ),
+    )
 
     # ------------------------------------------------------------------ #
     # Vendor browser (Playwright/Chromium) — RAM-constrained, off-hours only
