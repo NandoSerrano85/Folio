@@ -284,6 +284,32 @@ class SetImagesVendorResponse(BaseModel):
     vendor: VendorRef | None = None
 
 
+class VendorCredentialIn(BaseModel):
+    """Write-only vendor login credentials.
+
+    ``password`` is the secret stored Fernet-encrypted server-side via
+    ``folio_core.credentials.set_vendor_credentials``. This model is NEVER used
+    as a response, so the secret never leaves the server. All fields optional so
+    a caller can patch just the login_url or just the password.
+    """
+
+    login_url: str | None = Field(default=None, max_length=2048)
+    username: str | None = Field(default=None, max_length=256)
+    password: str | None = Field(default=None, max_length=1024)
+
+
+class VendorCredentialStatus(BaseModel):
+    """Read model for a vendor's stored credentials.
+
+    Reports only whether credentials exist plus the non-secret ``login_url`` /
+    ``username``. The ``password`` is NEVER returned.
+    """
+
+    has_credentials: bool = False
+    login_url: str | None = None
+    username: str | None = None
+
+
 # --------------------------------------------------------------------------- #
 # Accounts
 # --------------------------------------------------------------------------- #
@@ -348,6 +374,8 @@ __all__ = [
     "VendorRef",
     "SetImagesVendorRequest",
     "SetImagesVendorResponse",
+    "VendorCredentialIn",
+    "VendorCredentialStatus",
     "AccountOut",
     "DownloadRequest",
     "CountByName",

@@ -29,6 +29,7 @@ def load_builtin_adapters() -> dict:
     """
     # Concrete, always-on adapters. Add new per-vendor modules here once written.
     from worker.browser import generic  # noqa: F401  (import for its side effect)
+    from worker.browser import shopify_downloads  # noqa: F401  (side-effect import)
 
     return ADAPTER_REGISTRY
 

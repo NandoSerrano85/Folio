@@ -188,6 +188,83 @@ def derive_vendors(
 
 
 # --------------------------------------------------------------------------- #
+# set-vendor-login (store an encrypted browser-download login for a vendor)
+# --------------------------------------------------------------------------- #
+@app.command("set-vendor-login")
+def set_vendor_login(
+    vendor: str = typer.Option(
+        ..., "--vendor", help="Vendor name (case-insensitive) or numeric id."
+    ),
+    email: str = typer.Option(
+        ..., "--email", help="Customer-account login email for the store."
+    ),
+    login_url: str | None = typer.Option(
+        None,
+        "--login-url",
+        help="Login page URL (e.g. https://shop.example.com/account/login).",
+    ),
+) -> None:
+    """Store an encrypted customer login for a vendor and mark it login-required.
+
+    Prompts for the password WITHOUT echoing it (getpass). The password is
+    Fernet-encrypted via folio_core and is NEVER logged or printed. Omitting
+    --login-url leaves any previously stored URL unchanged.
+    """
+    import getpass
+
+    from sqlalchemy import func, select
+
+    from folio_core.credentials import set_vendor_credentials
+    from folio_core.db import session_scope
+    from folio_core.models import Vendor
+
+    password = getpass.getpass("Vendor login password (input hidden): ")
+    if not password:
+        typer.echo("No password entered; aborting (nothing was changed).")
+        raise typer.Exit(code=1)
+
+    key = vendor.strip()
+    with session_scope() as session:
+        row = session.get(Vendor, int(key)) if key.isdigit() else None
+        if row is None:
+            row = (
+                session.execute(
+                    select(Vendor)
+                    .where(func.lower(Vendor.name) == key.lower())
+                    .order_by(Vendor.id)
+                    .limit(1)
+                )
+                .scalars()
+                .first()
+            )
+        if row is None:
+            typer.echo(
+                f"No vendor matched '{vendor}'. Create the vendor first "
+                "(e.g. it is created automatically on the first Shopify email, "
+                "or via derive-vendors)."
+            )
+            raise typer.Exit(code=1)
+
+        # Only pass login_url when provided so an omitted flag leaves it unchanged
+        # (set_vendor_credentials treats an explicit value -- including None -- as
+        # a write).
+        kwargs: dict = {"username": email, "secret": password}
+        if login_url is not None:
+            kwargs["login_url"] = login_url
+        set_vendor_credentials(session, row.id, **kwargs)
+        row.login_required = True
+        vendor_id, vendor_name = row.id, row.name
+
+    logger.info(
+        "set-vendor-login.saved vendor_id=%s login_required=True", vendor_id
+    )
+    typer.echo(
+        f"Stored encrypted login for vendor '{vendor_name}' (id={vendor_id}); "
+        "login_required=True."
+    )
+
+
+# --------------------------------------------------------------------------- #
 # apply-rules (auto-file images into folders via collection rules)
 # --------------------------------------------------------------------------- #
 @app.command("apply-rules")

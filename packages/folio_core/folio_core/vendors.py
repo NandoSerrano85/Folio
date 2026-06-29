@@ -21,7 +21,11 @@ from sqlalchemy.orm import Session
 
 from folio_core.models import Vendor
 
-__all__ = ["slugify_adapter_key", "get_or_create_vendor"]
+__all__ = [
+    "slugify_adapter_key",
+    "get_or_create_vendor",
+    "ensure_adapter_vendor",
+]
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _MAX_KEY_LEN = 128  # vendors.adapter_key is String(128)
@@ -100,5 +104,91 @@ def get_or_create_vendor(session: Session, name: str) -> Vendor:
             select(Vendor).where(Vendor.adapter_key == unique_key)
         ).scalars().first()
         if existing is not None:
+            return existing
+        raise
+
+
+def _unique_adapter_key(
+    session: Session, desired: str, *, exclude_id: int | None = None
+) -> str:
+    """Return ``desired`` (bounded to column width), suffixed ``-2``/``-3``/... if
+    another vendor (id != ``exclude_id``) already owns it."""
+    base = _bounded_key(desired)
+    key = base
+    suffix = 2
+    while True:
+        stmt = select(Vendor.id).where(Vendor.adapter_key == key)
+        if exclude_id is not None:
+            stmt = stmt.where(Vendor.id != exclude_id)
+        if session.execute(stmt).first() is None:
+            return key
+        key = _bounded_key(base, f"-{suffix}")
+        suffix += 1
+
+
+def ensure_adapter_vendor(
+    session: Session,
+    *,
+    name: str,
+    domain: str | None,
+    adapter_key: str,
+    login_required: bool = False,
+) -> Vendor:
+    """Get-or-create the vendor named ``name`` and bind it to an adapter.
+
+    The vendor is identified by its (case-insensitive) display ``name`` — the
+    stable identity for vendors auto-created from an email From display name
+    (the sender being a shared provider domain such as Shopify's). On a hit the
+    existing row's ``domain``, ``adapter_key`` and ``login_required`` are
+    updated; on a miss a new row is created with those values.
+
+    ``adapter_key`` is the registry key the adapter is registered under (e.g.
+    ``"shopify_downloads"``). Because ``vendors.adapter_key`` is UNIQUE, if a
+    DIFFERENT vendor already owns the requested key it is suffixed ``-2`` / ``-3``
+    / ... to satisfy the constraint; the requested key is kept as-is when it is
+    free or already owned by this same vendor.
+
+    The session is flushed so the returned vendor has a populated ``id``. The
+    caller owns the transaction (no commit here).
+    """
+    name = name.strip()
+
+    vendor = session.execute(
+        select(Vendor)
+        .where(func.lower(Vendor.name) == name.lower())
+        .order_by(Vendor.id)
+        .limit(1)
+    ).scalars().first()
+
+    if vendor is not None:
+        vendor.domain = domain
+        vendor.login_required = login_required
+        if vendor.adapter_key != adapter_key:
+            vendor.adapter_key = _unique_adapter_key(
+                session, adapter_key, exclude_id=vendor.id
+            )
+        session.flush()
+        return vendor
+
+    unique_key = _unique_adapter_key(session, adapter_key)
+    try:
+        with session.begin_nested():
+            vendor = Vendor(
+                name=name,
+                domain=domain,
+                adapter_key=unique_key,
+                login_required=login_required,
+            )
+            session.add(vendor)
+            session.flush()
+        return vendor
+    except IntegrityError:
+        existing = session.execute(
+            select(Vendor).where(Vendor.adapter_key == unique_key)
+        ).scalars().first()
+        if existing is not None:
+            existing.domain = domain
+            existing.login_required = login_required
+            session.flush()
             return existing
         raise

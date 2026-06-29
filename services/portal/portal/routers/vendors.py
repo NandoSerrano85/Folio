@@ -7,11 +7,22 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from folio_core.credentials import (
+    get_vendor_credentials,
+    set_vendor_credentials,
+)
 from folio_core.models import ImageSource, Vendor
 from folio_core.vendors import slugify_adapter_key
 
 from ..deps import get_db, require_user
-from ..schemas import OkResponse, VendorCreate, VendorOut, VendorUpdate
+from ..schemas import (
+    OkResponse,
+    VendorCreate,
+    VendorCredentialIn,
+    VendorCredentialStatus,
+    VendorOut,
+    VendorUpdate,
+)
 
 router = APIRouter(
     prefix="/api/vendors",
@@ -151,6 +162,81 @@ def update_vendor(
             "notes": vendor.notes,
             "image_count": _vendor_image_count(db, vendor.id),
         }
+    )
+
+
+@router.get(
+    "/{vendor_id}/credentials", response_model=VendorCredentialStatus
+)
+def get_vendor_credential_status(
+    vendor_id: int, db: Session = Depends(get_db)
+) -> VendorCredentialStatus:
+    """Report whether store-login credentials exist for this vendor.
+
+    Returns only the non-secret ``login_url`` / ``username``; the stored
+    password is NEVER returned (or logged).
+    """
+    vendor = db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Vendor not found"
+        )
+    creds = get_vendor_credentials(db, vendor_id)
+    if creds is None:
+        return VendorCredentialStatus(has_credentials=False)
+    return VendorCredentialStatus(
+        has_credentials=bool(creds.get("secret")),
+        login_url=creds.get("login_url"),
+        username=creds.get("username"),
+    )
+
+
+@router.put(
+    "/{vendor_id}/credentials", response_model=VendorCredentialStatus
+)
+def put_vendor_credentials(
+    vendor_id: int,
+    payload: VendorCredentialIn,
+    db: Session = Depends(get_db),
+) -> VendorCredentialStatus:
+    """Create or update this vendor's store-login credentials.
+
+    Only fields present in the request are changed (omitted fields are left
+    unchanged). Supplying a non-empty ``password`` also flags the vendor as
+    ``login_required`` so the worker logs in before downloading. The password is
+    write-only: it is NEVER returned or logged.
+    """
+    vendor = db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Vendor not found"
+        )
+
+    fields = payload.model_dump(exclude_unset=True)
+    kwargs: dict = {}
+    if "login_url" in fields:
+        kwargs["login_url"] = (fields["login_url"] or None)
+    if "username" in fields:
+        kwargs["username"] = (fields["username"] or None)
+    if "password" in fields:
+        kwargs["secret"] = (fields["password"] or None)
+
+    if kwargs:
+        set_vendor_credentials(db, vendor_id, **kwargs)
+    # Keep login_required in sync with whether a password is actually stored: a
+    # non-empty password sets it; explicitly clearing the password unsets it;
+    # omitting the password field leaves it unchanged.
+    if "password" in fields:
+        vendor.login_required = bool(fields.get("password"))
+    db.commit()
+
+    creds = get_vendor_credentials(db, vendor_id)
+    if creds is None:
+        return VendorCredentialStatus(has_credentials=False)
+    return VendorCredentialStatus(
+        has_credentials=bool(creds.get("secret")),
+        login_url=creds.get("login_url"),
+        username=creds.get("username"),
     )
 
 

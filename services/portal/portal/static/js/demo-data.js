@@ -40,6 +40,14 @@ const VENDORS = [
 ];
 const VMAP = {}; VENDORS.forEach((v) => { VMAP[v.id] = v; });
 
+// In-memory store-login credential STATUS per vendor (never a real password).
+// Seed the two demo vendors that require a login so the "login set" indicator
+// renders. Only non-secret fields are kept here.
+const VENDOR_CREDS = {
+  2: { has_credentials: true, login_url: "https://ateliermori.com/account/login", username: "studio@folio.studio" },
+  7: { has_credentials: true, login_url: "https://verdelab.io/account/login", username: "lab@folio.studio" },
+};
+
 const ACCOUNTS = [
   { id: 1, provider: "gmail", email: "purchasing@folio.studio", label: "Purchasing", status: "active" },
   { id: 2, provider: "gmail", email: "design@folio.studio", label: "Design", status: "active" },
@@ -338,6 +346,25 @@ export const api = {
   },
 
   async vendors() { return delay(VENDORS.map(({ sender, ...v }) => v)); },
+
+  async vendorCredentials(id) {
+    const c = VENDOR_CREDS[Number(id)];
+    return delay(c ? { ...c } : { has_credentials: false, login_url: null, username: null });
+  },
+
+  async setVendorCredentials(id, payload) {
+    const vid = Number(id);
+    const prev = VENDOR_CREDS[vid] || { has_credentials: false, login_url: null, username: null };
+    const next = { ...prev };
+    if (payload && payload.login_url !== undefined) next.login_url = payload.login_url || null;
+    if (payload && payload.username !== undefined) next.username = payload.username || null;
+    // Never store the password itself — only track that one exists.
+    if (payload && payload.password !== undefined) next.has_credentials = !!payload.password;
+    VENDOR_CREDS[vid] = next;
+    const v = VMAP[vid];
+    if (v && payload && payload.password) v.login_required = true;
+    return delay({ has_credentials: next.has_credentials, login_url: next.login_url, username: next.username });
+  },
 
   async accounts() {
     return delay(ACCOUNTS.map((a) => ({ ...a, image_count: accountImageCount(a.id), source_count: accountImageCount(a.id) })));

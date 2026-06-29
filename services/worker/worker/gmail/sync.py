@@ -91,6 +91,11 @@ _MAX_IMAGE_BYTES = 50 * 1024 * 1024   # per-image cap; held in memory before ing
 # Local copy of the href extractor (full URLs, not just hosts).
 _HREF_RE = re.compile(r"""href\s*=\s*["']?(https?://[^"'>\s)]+)""", re.IGNORECASE)
 
+# Shopify "Digital Downloads" token-link marker (the link host is the shop's own
+# domain; the asset is reached directly via this path segment).
+_SHOPIFY_DOWNLOAD_MARKER = "/a/downloads/-/"
+_SHOPIFY_ADAPTER_KEY = "shopify_downloads"
+
 
 # --------------------------------------------------------------------------- #
 # Vendor adapter contract  (FROZEN -- do not change)
@@ -522,46 +527,84 @@ def _handle_message(
         return
 
     # 5. Ingest each downloaded original through the common pipeline.
+    #    A downloaded asset may be a ZIP of images (Shopify Digital Downloads):
+    #    expand it into its image members FIRST so each image is ingested
+    #    individually. A non-zip asset expands to a single (filename, data) pair,
+    #    so the single-image path is behaviourally identical. The :n:m source_id
+    #    is stable per (asset, member) and stays inside the message_id namespace,
+    #    so idempotency (and the message-already-handled guard) still holds.
+    from worker.archive import expand_image_archive, is_zip
+
     imported = skipped = failed = 0
     with session_scope() as session:
         vendor = session.get(Vendor, vinfo.id) if vinfo is not None else None
         for n, (target, data) in enumerate(items):
-            filename = target.filename or _basename(target.url)
-            mime = target.content_type or mimetypes.guess_type(filename)[0]
-            try:
-                result = run_pipeline(
-                    session,
-                    account=account,
-                    source_type=SourceTypeEnum.email,
-                    source_id=f"{message_id}:{n}",
-                    data=data,
-                    original_filename=filename,
-                    mime=mime,
-                    source_date=parsed.source_date,
-                    source_date_origin=SourceDateOriginEnum.email_date,
-                    vendor=vendor,
-                    image_source_fields={
-                        "vendor_url": target.url or primary_url,
-                        "email_subject": parsed.subject,
-                        "email_sender": parsed.address,
-                        "email_message_id": message_id,
-                    },
-                )
-                if result.created_image:
-                    imported += 1
-                else:
-                    skipped += 1
-            except Exception:  # noqa: BLE001 - one asset must not abort the message
-                logger.exception(
-                    "gmail.sync.ingest_failed account=%s id=%s n=%d",
-                    account.email,
-                    message_id,
-                    n,
-                )
-                failed += 1
+            base_name = target.filename or _basename(target.url)
+            archive = is_zip(base_name, data)
+            members = expand_image_archive(base_name, data)
+            for m, (fname, fdata) in enumerate(members):
+                # For a single direct image keep the adapter-provided content_type;
+                # for a zip member the archive's content_type is meaningless, so
+                # guess the MIME from the member filename.
+                mime = mimetypes.guess_type(fname)[0]
+                if not archive:
+                    mime = target.content_type or mime
+                try:
+                    result = run_pipeline(
+                        session,
+                        account=account,
+                        source_type=SourceTypeEnum.email,
+                        source_id=f"{message_id}:{n}:{m}",
+                        data=fdata,
+                        original_filename=fname,
+                        mime=mime,
+                        source_date=parsed.source_date,
+                        source_date_origin=SourceDateOriginEnum.email_date,
+                        vendor=vendor,
+                        image_source_fields={
+                            "vendor_url": target.url or primary_url,
+                            "email_subject": parsed.subject,
+                            "email_sender": parsed.address,
+                            "email_message_id": message_id,
+                        },
+                    )
+                    if result.created_image:
+                        imported += 1
+                    else:
+                        skipped += 1
+                except Exception:  # noqa: BLE001 - one asset must not abort the message
+                    logger.exception(
+                        "gmail.sync.ingest_failed account=%s id=%s n=%d m=%d",
+                        account.email,
+                        message_id,
+                        n,
+                        m,
+                    )
+                    failed += 1
         run = session.get(IngestRun, run_id)
         if run is not None:
             increment_counts(run, seen=1, imported=imported, skipped=skipped, failed=failed)
+
+    if imported == 0 and skipped == 0:
+        # No ImageSource was created (e.g. a zip of non-image files, or every
+        # member failed). Without an assist row the message-handled guard never
+        # trips and the message is re-downloaded on every run — so enqueue one to
+        # both surface it to the operator and idempotently close it.
+        _enqueue_assist(
+            account.id,
+            vinfo.id if vinfo is not None else None,
+            message_id,
+            parsed.subject,
+            parsed.address,
+            primary_url,
+            reason="ingest_failed" if failed else "no_images",
+        )
+        logger.info(
+            "gmail.sync.no_images account=%s id=%s failed=%d",
+            account.email,
+            message_id,
+            failed,
+        )
 
     logger.info(
         "gmail.sync.ingested account=%s id=%s imported=%d skipped=%d failed=%d",
@@ -695,7 +738,22 @@ def _resolve(
             if adapter is not None:
                 return adapter, hv, url, False
 
-    # 3. Generic fallback for allow-listed-but-unmapped links.
+    # 3. Shopify "Digital Downloads": a /a/downloads/-/ token link IS the asset.
+    #    The sender is the shared Shopify domain, so the shop identity lives in the
+    #    link host + the From display name -- bind a per-shop vendor (created on
+    #    demand) to the shared shopify_downloads adapter so the vendor_id is set
+    #    for tagging, future host-resolution, and credential lookup. The adapter
+    #    class is looked up by the constant key (not the vendor's possibly-suffixed
+    #    adapter_key), so multiple shops route to the one shared adapter.
+    shopify_url = _first_shopify_url(parsed.vendor_urls)
+    if shopify_url is not None:
+        shopify_cls = get_adapter(_SHOPIFY_ADAPTER_KEY)
+        if shopify_cls is not None:
+            shop_vinfo = _ensure_shopify_vendor(parsed, shopify_url)
+            if shop_vinfo is not None:
+                return shopify_cls, shop_vinfo, shopify_url, False
+
+    # 4. Generic fallback for allow-listed-but-unmapped links.
     generic = get_adapter("generic")
     if generic is not None and parsed.vendor_urls:
         provenance = vinfo
@@ -708,9 +766,56 @@ def _resolve(
                     break
         return generic, provenance, parsed.vendor_urls[0], True
 
-    # 4. Nothing applicable.
+    # 5. Nothing applicable.
     primary = parsed.vendor_urls[0] if parsed.vendor_urls else None
     return None, vinfo, primary, False
+
+
+def _first_shopify_url(urls: list[str]) -> str | None:
+    """Return the first Shopify Digital Downloads token link, or ``None``."""
+    for url in urls:
+        if _SHOPIFY_DOWNLOAD_MARKER in url:
+            return url
+    return None
+
+
+def _ensure_shopify_vendor(
+    parsed: _ParsedEmail, shopify_url: str
+) -> _VendorInfo | None:
+    """Get-or-create the per-shop vendor for a Shopify Digital Downloads email.
+
+    The shop is identified by the email From DISPLAY NAME (the sender being the
+    shared ``t.shopifyemail.com`` domain) and bound to the ``shopify_downloads``
+    adapter, with ``domain`` set to the link host for future host-resolution and
+    ``login_required=True`` so the credential path is exercised. Returns a
+    detached :class:`_VendorInfo`; any DB failure is logged and returns ``None``
+    so the caller falls back to the generic / no-adapter path.
+    """
+    from folio_core.vendors import ensure_adapter_vendor
+
+    host = _host_of(shopify_url)
+    name = (parsed.display_name or "").strip() or host or "Shopify Store"
+    try:
+        with session_scope() as session:
+            vendor = ensure_adapter_vendor(
+                session,
+                name=name,
+                domain=host,
+                adapter_key=_SHOPIFY_ADAPTER_KEY,
+                login_required=True,
+            )
+            # Snapshot the scalar attributes while the session is open so the
+            # returned value is safe to use after the session closes.
+            return _VendorInfo(
+                id=vendor.id,
+                name=vendor.name,
+                domain=(vendor.domain or None),
+                adapter_key=(vendor.adapter_key or ""),
+                login_required=bool(vendor.login_required),
+            )
+    except Exception:  # noqa: BLE001 - never abort resolution on a vendor write
+        logger.exception("gmail.sync.shopify_vendor_failed host=%s", host or "?")
+        return None
 
 
 def _pick_url_for_vendor(vinfo: _VendorInfo, urls: list[str]) -> str | None:

@@ -79,40 +79,14 @@ def load_vendor_credentials(vendor_id: int | None) -> dict[str, Any] | None:
     if vendor_id is None:
         return None
 
-    import json
-
-    from sqlalchemy import select
-
-    from folio_core.crypto import decrypt_value
+    from folio_core.credentials import get_vendor_credentials
     from folio_core.db import session_scope
-    from folio_core.models import VendorCredential
 
     with session_scope() as session:
-        cred = session.scalar(
-            select(VendorCredential).where(VendorCredential.vendor_id == vendor_id)
-        )
-        if cred is None:
+        out = get_vendor_credentials(session, vendor_id)
+        if out is None:
             logger.info("creds.absent vendor_id=%s", vendor_id)
             return None
-
-        out: dict[str, Any] = {
-            "login_url": cred.login_url,
-            "username": None,
-            "secret": None,
-            "extra": {},
-        }
-        if cred.username_enc:
-            out["username"] = decrypt_value(cred.username_enc)
-        if cred.secret_enc:
-            out["secret"] = decrypt_value(cred.secret_enc)
-        if cred.extra_enc:
-            raw = decrypt_value(cred.extra_enc)
-            try:
-                parsed = json.loads(raw)
-                out["extra"] = parsed if isinstance(parsed, dict) else {"value": parsed}
-            except (ValueError, TypeError):
-                # Free-form note rather than JSON; keep it usable without logging.
-                out["extra"] = {"raw": raw}
         # Log only the SHAPE of what we loaded, never the secret material.
         logger.info(
             "creds.loaded vendor_id=%s has_username=%s has_secret=%s extra_keys=%d",

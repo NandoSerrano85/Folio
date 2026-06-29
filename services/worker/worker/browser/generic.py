@@ -28,6 +28,7 @@ from urllib.parse import urlsplit
 
 from folio_core.logging import get_logger
 from worker.browser.base import DownloadError, DownloadTarget, EmailRef, VendorAdapter
+from worker.browser.net import assert_public_url, fetch_public
 from worker.browser.registry import register_adapter
 
 logger = get_logger("worker.browser.generic")
@@ -158,45 +159,18 @@ def _candidate_urls(page: Any) -> list[str]:
     return out
 
 
-def _assert_public_url(url: str) -> None:
-    """SSRF guard: reject non-http(s) URLs and hosts that resolve to a private,
-    loopback, link-local, or otherwise non-public address. Email links are only
-    as trusted as the sender allow-list, so refuse internal targets outright."""
-    import ipaddress
-    import socket
-
-    parts = urlsplit(url)
-    if parts.scheme not in ("http", "https"):
-        raise DownloadError(f"refusing non-http(s) scheme for {_safe_host(url)}")
-    host = parts.hostname
-    if not host:
-        raise DownloadError("refusing url with no host")
-    try:
-        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
-    except OSError as exc:
-        raise DownloadError(f"cannot resolve {_safe_host(url)}") from exc
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-            or ip.is_unspecified
-        ):
-            raise DownloadError(f"refusing non-public address for {_safe_host(url)}")
-
-
 def _fetch_bytes(page: Any, url: str) -> bytes:
     """Fetch ``url`` via the page's request context (shares cookies/session).
 
     Falls back to ``urllib`` when no live page is available (e.g. unit testing).
     """
-    _assert_public_url(url)
+    assert_public_url(url)
     if page is not None:
         try:
-            response = page.request.get(url)
+            # Validates every redirect hop's host (not just the initial URL).
+            response = fetch_public(page.request, url)
+        except DownloadError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise DownloadError(f"request failed for {_safe_host(url)}") from exc
         try:

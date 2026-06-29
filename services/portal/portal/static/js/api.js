@@ -178,6 +178,31 @@ export async function deleteVendor(id) {
   }
   return req("DELETE", `/api/vendors/${id}`);
 }
+/**
+ * Store-login credential STATUS for a vendor: {has_credentials, login_url?,
+ * username?}. The password is write-only and is NEVER returned by this GET.
+ */
+export async function vendorCredentials(id) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.vendorCredentials) return d.api.vendorCredentials(id);
+    return { has_credentials: false };
+  }
+  return req("GET", `/api/vendors/${id}/credentials`);
+}
+/**
+ * Set/update a vendor's store-login credentials. payload is
+ * {login_url?, username?, password?}; omitted fields are left unchanged.
+ * Resolves to the updated VendorCredentialStatus (never echoes the password).
+ */
+export async function setVendorCredentials(id, payload) {
+  if (DEMO) {
+    const d = await demo();
+    if (d.api.setVendorCredentials) return d.api.setVendorCredentials(id, payload);
+    return { has_credentials: !!(payload && payload.password) };
+  }
+  return req("PUT", `/api/vendors/${id}/credentials`, payload);
+}
 
 // ------------------------------------------------------- collection rules -- //
 // v3 automation rules: ONE condition + up to two actions. A rule is

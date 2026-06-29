@@ -14,6 +14,14 @@ import * as api from "./api.js";
 let root = null;
 let sendersData = [];
 
+// Store-login credential STATUS per vendor id ({has_credentials, login_url?,
+// username?}) — never a password. `credFetched` guards the lazy load so the
+// re-render after fetching doesn't refetch in a loop; `openCredFor` remembers
+// which vendors' inline login forms are expanded across re-renders.
+let vendorCreds = {};
+const credFetched = new Set();
+const openCredFor = new Set();
+
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const DOMAIN_RE = /^@[^@\s]+\.[^@\s]+$/;
 
@@ -337,6 +345,8 @@ function buildVendorsSection() {
     el("button", { class: "btn-primary btn-add", text: "Add vendor", onClick: () => submitVendor(input) }),
   ]));
 
+  ensureVendorCreds(vendors);
+
   const table = el("div", { class: "table" });
   table.appendChild(el("div", { class: "thead", style: { display: "grid", gridTemplateColumns: VENDOR_GRID } }, [
     el("span", { text: "Vendor" }),
@@ -360,14 +370,27 @@ function buildVendorsSection() {
 }
 
 function vendorRow(v) {
-  const wrap = el("div", { class: "trow" });
+  const wrap = el("div", { class: "trow", style: { display: "block" } });
 
-  const nameCell = el("div", { style: { display: "flex", alignItems: "center", gap: "9px", minWidth: "0" } }, [
+  const hasCreds = !!(vendorCreds[v.id] && vendorCreds[v.id].has_credentials);
+
+  const nameInner = [
     el("span", { class: "vendor-dot", style: { background: vendorColor(v.name) } }),
     el("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, text: v.name }),
-  ]);
+  ];
+  if (hasCreds) {
+    // Subtle "login set" indicator — credentials are stored for this vendor.
+    nameInner.push(el("span", {
+      class: "tag",
+      title: "Store login saved",
+      style: { background: "rgba(34,160,90,0.12)", color: "#1f7a44", borderColor: "rgba(34,160,90,0.28)" },
+      text: "login set",
+    }));
+  }
+  const nameCell = el("div", { style: { display: "flex", alignItems: "center", gap: "9px", minWidth: "0" } }, nameInner);
 
   const actions = el("div", { style: { display: "flex", justifyContent: "flex-end", gap: "14px" } }, [
+    el("button", { class: "link-btn", text: "Store login", onClick: () => toggleCredForm(v) }),
     el("button", { class: "link-btn", text: "Rename", onClick: () => renameVendor(v) }),
     el("button", { class: "link-btn", text: "Delete", onClick: () => removeVendor(v) }),
   ]);
@@ -377,7 +400,100 @@ function vendorRow(v) {
     el("div", { class: "cell-num", text: String(v.image_count || 0) }),
     actions,
   ]));
+
+  if (openCredFor.has(v.id)) wrap.appendChild(buildCredForm(v));
   return wrap;
+}
+
+// Inline store-login form for one vendor. Three write-only fields; the password
+// is type=password and is only sent when typed (left blank = keep existing).
+function buildCredForm(v) {
+  const st = vendorCreds[v.id] || {};
+  const form = el("div", {
+    class: "cred-form",
+    style: {
+      marginTop: "10px", padding: "12px 14px", borderTop: "1px solid var(--line, #e6e6e6)",
+      display: "flex", flexDirection: "column", gap: "8px",
+    },
+  });
+
+  form.appendChild(el("p", {
+    class: "section-help",
+    style: { margin: "0" },
+    text: "Only needed for vendors whose downloads require signing into your store account. Stored encrypted; the password is never shown again.",
+  }));
+
+  const loginUrl = el("input", { class: "add-input", value: st.login_url || "", placeholder: "https://shop.com/account/login" });
+  const username = el("input", { class: "add-input", value: st.username || "", placeholder: "Account email", autocomplete: "username" });
+  const password = el("input", {
+    class: "add-input", type: "password", autocomplete: "new-password",
+    placeholder: st.has_credentials ? "Password — leave blank to keep current" : "Password",
+  });
+
+  const fields = el("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" } }, [
+    el("label", { class: "cred-field", style: { display: "flex", flexDirection: "column", gap: "4px", gridColumn: "1 / -1" } }, [
+      el("span", { class: "section-note", style: { margin: "0" }, text: "Login URL (optional)" }), loginUrl,
+    ]),
+    el("label", { class: "cred-field", style: { display: "flex", flexDirection: "column", gap: "4px" } }, [
+      el("span", { class: "section-note", style: { margin: "0" }, text: "Account email" }), username,
+    ]),
+    el("label", { class: "cred-field", style: { display: "flex", flexDirection: "column", gap: "4px" } }, [
+      el("span", { class: "section-note", style: { margin: "0" }, text: "Password" }), password,
+    ]),
+  ]);
+  form.appendChild(fields);
+
+  const save = el("button", { class: "btn-primary btn-add", text: "Save login" });
+  save.addEventListener("click", () => saveCreds(v, { loginUrl, username, password, save }));
+  form.appendChild(el("div", { style: { display: "flex", gap: "10px", justifyContent: "flex-end" } }, [
+    el("button", { class: "link-btn", text: "Cancel", onClick: () => toggleCredForm(v) }),
+    save,
+  ]));
+  return form;
+}
+
+function toggleCredForm(v) {
+  if (openCredFor.has(v.id)) openCredFor.delete(v.id);
+  else openCredFor.add(v.id);
+  render();
+}
+
+async function saveCreds(v, { loginUrl, username, password, save }) {
+  // login_url + username are always sent (so blanking clears them); the
+  // password is only sent when typed, so an empty box keeps the stored secret.
+  const payload = {
+    login_url: (loginUrl.value || "").trim() || null,
+    username: (username.value || "").trim() || null,
+  };
+  if (password.value) payload.password = password.value;
+
+  save.disabled = true;
+  try {
+    const status = await api.setVendorCredentials(v.id, payload);
+    vendorCreds[v.id] = status || { has_credentials: !!payload.password };
+    credFetched.add(v.id);
+    if (payload.password) v.login_required = true;
+    openCredFor.delete(v.id);
+    toast("Store login saved.");
+    render();
+  } catch (_) {
+    save.disabled = false;
+    toast("Could not save store login.");
+  }
+}
+
+// Lazily load credential status for vendors we haven't checked yet, then
+// re-render once so the "login set" indicator appears. `credFetched` prevents
+// the post-fetch render() from triggering another round.
+function ensureVendorCreds(vendors) {
+  const pending = vendors.filter((v) => !credFetched.has(v.id));
+  if (!pending.length) return;
+  pending.forEach((v) => credFetched.add(v.id));
+  Promise.all(pending.map((v) =>
+    api.vendorCredentials(v.id)
+      .then((st) => { vendorCreds[v.id] = st || { has_credentials: false }; })
+      .catch(() => { vendorCreds[v.id] = { has_credentials: false }; })
+  )).then(() => render());
 }
 
 // Re-fetch vendors into shared state and re-render the screen so the list, the
