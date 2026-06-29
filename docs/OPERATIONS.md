@@ -16,7 +16,7 @@ invented flags.
 | --- | --- | --- | --- |
 | `db` | Postgres 16, single source of record | (postgres) | 1.5g |
 | `worker` | Ingestion CLI + APScheduler loop | `schedule` | 2.5g |
-| `portal` | FastAPI JSON API + UI, port 8080 | (uvicorn) | 1g |
+| `portal` | FastAPI JSON API + UI, host 8899 → 8080 | (uvicorn) | 1g |
 
 The worker's container **entrypoint** runs `alembic -c $FOLIO_ALEMBIC_INI
 upgrade head` on every start (so the schema is always current), then execs the
@@ -244,7 +244,7 @@ skips); `router.included/missing module=...` and `admin.created` (portal boot).
 ```bash
 docker compose ps                            # up/healthy state
 docker stats --no-stream                     # live memory vs the caps
-curl -s http://NAS-IP:8080/health            # {"status":"ok"}
+curl -s http://NAS-IP:8899/health            # {"status":"ok"}
 ```
 
 **Database (the source of record):**

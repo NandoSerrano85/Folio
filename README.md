@@ -96,7 +96,7 @@ make auth-drive ACCOUNT=you@example.com
 make auth-gmail ACCOUNT=you@example.com
 
 # 5. Run the stack
-make up                 # worker scheduler + portal on http://localhost:8080
+make up                 # worker scheduler + portal on http://localhost:8899
 make logs
 ```
 

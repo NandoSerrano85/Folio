@@ -75,7 +75,7 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "Set the Secure flag on the session cookie. Default False because "
-            "the portal is usually reached at http://NAS-IP:8080 on the LAN; "
+            "the portal is usually reached at http://NAS-IP:8899 on the LAN; "
             "set True when the portal is served over HTTPS (reverse proxy/VPN), "
             "otherwise the cookie won't be sent and login won't persist."
         ),

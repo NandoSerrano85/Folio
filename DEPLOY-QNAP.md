@@ -381,23 +381,24 @@ sync. `discover-senders` also runs on the scheduler at
 
 ## 10. Access the portal, log in, and network guidance
 
-The portal listens on container port **8080**, published to the host as
-`8080:8080`. Open:
+The portal listens on container port **8080**, published to the host on
+`PORTAL_PORT` (default `8899` — QTS's own admin UI uses 8080, so publishing the
+host on 8080 fails with "address already in use"). Open:
 
 ```
-http://NAS-IP:8080
+http://NAS-IP:8899
 ```
 
 Log in with `ADMIN_USERNAME` / `ADMIN_PASSWORD` from `.env`. The library is
 sorted **newest first by source date** by default. Health check (no auth):
-`http://NAS-IP:8080/health` → `{"status":"ok"}`.
+`http://NAS-IP:8899/health` → `{"status":"ok"}`.
 
 **Network safety:** Folio has a single admin login over a session cookie and
 serves your original images. Keep it **LAN-only** or behind a **VPN**:
 
-- Do **not** port-forward 8080 to the public internet.
+- Do **not** port-forward the portal (`PORTAL_PORT`, default 8899) to the public internet.
 - For remote access, use the QNAP VPN (QVPN / WireGuard / Tailscale) and reach
-  `http://NAS-IP:8080` over the tunnel.
+  `http://NAS-IP:8899` over the tunnel.
 - If you must expose it, put it behind QNAP's reverse proxy / a TLS terminator
   with HTTPS, and set the portal cookie to secure (Phase-2 / proxy concern).
   The cookie is `same_site=lax`, `https_only=false` by default — fine on a LAN,
@@ -588,7 +589,7 @@ volume.)
 
 - **`SESSION_HTTPS_ONLY`** (default `false`): adds the `Secure` flag to the
   portal session cookie. Leave it `false` for plain-HTTP LAN access
-  (`http://NAS-IP:8080`) — with `Secure` set, the browser won't send the cookie
+  (`http://NAS-IP:8899`) — with `Secure` set, the browser won't send the cookie
   over HTTP and you can't stay logged in. Set it `true` **only** when the portal
   is reached over HTTPS (reverse proxy / TLS terminator / HTTPS VPN), then
   restart the portal.

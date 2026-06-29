@@ -72,7 +72,10 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      # host:container. The container always serves on 8080; the HOST port is
+      # PORTAL_PORT (default 8899). QNAP's QTS admin UI occupies 8080, so binding
+      # the host to 8080 fails with "address already in use" — hence 8899.
+      - "${PORTAL_PORT:-8899}:8080"
     volumes:
       - ./.env:/app/.env:ro          # ro: app config/secrets (read by the app)
       - media:/data/media:ro         # ro: serves original bytes

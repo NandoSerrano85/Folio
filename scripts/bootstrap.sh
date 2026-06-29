@@ -205,7 +205,7 @@ Next steps:
   7. First Drive crawl + sender discovery:
        docker compose run --rm worker sync-drive --full
        docker compose run --rm worker discover-senders
-  8. Open the portal:  http://NAS-IP:8080
+  8. Open the portal:  http://NAS-IP:8899   (PORTAL_PORT; QTS uses 8080)
 
 See docs/QUICKSTART.md for the full copy-paste walkthrough.
 EOF

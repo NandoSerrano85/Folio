@@ -52,7 +52,7 @@ docker compose ps                    # all three Up; db should be healthy
 ```
 
 Services: **db** (Postgres 16), **worker** (ingestion CLI + scheduler), **portal**
-(FastAPI + UI on host port **8080**). The worker entrypoint runs
+(FastAPI + UI on host port **8899**, `PORTAL_PORT`). The worker entrypoint runs
 `alembic upgrade head` on every boot.
 
 ---
@@ -136,13 +136,13 @@ docker compose run --rm worker discover-senders           # all accounts
 ## 6. Open the portal
 
 ```
-http://NAS-IP:8080            # locally: http://localhost:8080
+http://NAS-IP:8899            # locally: http://localhost:8899
 ```
 
 Log in with `ADMIN_USERNAME` / `ADMIN_PASSWORD` (or paste the one-time access
 token from step 0). Health check (no auth): `GET /health` → `{"status":"ok"}`.
 
-> Keep the portal LAN-only or behind a VPN — do not port-forward 8080 to the
+> Keep the portal LAN-only or behind a VPN — do not port-forward it to the
 > internet. If you serve it over HTTPS, set `SESSION_HTTPS_ONLY=true` in `.env`
 > (see DEPLOY-QNAP §10).
 

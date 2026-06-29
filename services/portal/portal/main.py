@@ -121,7 +121,7 @@ def create_app() -> FastAPI:
 
     # Signed-cookie sessions for login state. ``session_https_only`` adds the
     # Secure flag; it defaults to False because the portal is typically reached
-    # at http://NAS-IP:8080 on the LAN (set it True when fronted by HTTPS/VPN).
+    # at http://NAS-IP:8899 on the LAN (set it True when fronted by HTTPS/VPN).
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.portal_secret_key,

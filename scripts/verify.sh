@@ -12,7 +12,7 @@
 #
 # Usage:
 #   scripts/verify.sh
-#   PORTAL_URL=http://192.168.1.50:8080 scripts/verify.sh
+#   PORTAL_URL=http://192.168.1.50:8899 scripts/verify.sh
 #   COMPOSE="docker-compose" scripts/verify.sh    # legacy compose binary
 #
 set -euo pipefail
@@ -21,7 +21,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 COMPOSE="${COMPOSE:-docker compose}"
-PORTAL_URL="${PORTAL_URL:-http://localhost:8080}"
+PORTAL_URL="${PORTAL_URL:-http://localhost:8899}"
 
 # Pull POSTGRES_USER / POSTGRES_DB out of .env (defaults match .env.example).
 env_get() { grep -E "^$1=" "$ROOT/.env" 2>/dev/null | tail -n1 | cut -d= -f2- || true; }
