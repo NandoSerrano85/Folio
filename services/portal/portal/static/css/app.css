@@ -340,6 +340,15 @@ a{color:inherit}
 .thead .th-r{text-align:right}
 .thead .th-vendor{padding-left:18px}
 .empty-table{padding:26px 18px;text-align:center;color:var(--muted);font-size:13px}
+/* Email-sender groups (Included / Not included), each a card with a fixed-height
+   scrolling body so a long list never stretches the page (v3 design). */
+.sender-group-label{display:flex;align-items:center;gap:8px;margin:22px 2px 8px}
+.sender-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sender-dot.included{background:var(--accent)}
+.sender-dot.excluded{background:var(--line-strong)}
+.sender-group-name{font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.02em}
+.sender-group-count{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+.sender-scroll{max-height:312px;overflow-y:auto}
 
 /* ===========================================================================
    AUTOMATION RULES — design/folio-mockup.dc.html isRules block

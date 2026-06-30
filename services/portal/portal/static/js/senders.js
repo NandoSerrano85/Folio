@@ -72,12 +72,14 @@ function render() {
 function buildEmailSection() {
   const frag = document.createDocumentFragment();
 
-  const included = sendersData.filter((s) => s.enabled).length;
-  const off = sendersData.length - included;
+  const sorted = sendersData.slice().sort((a, b) =>
+    (b.discovered_count - a.discovered_count) || a.address.localeCompare(b.address));
+  const included = sorted.filter((s) => s.enabled);
+  const excluded = sorted.filter((s) => !s.enabled);
 
   const head = el("div", { class: "section-head" }, [
     el("h2", { text: "Email senders" }),
-    el("span", { class: "section-stat", text: `${sendersData.length} discovered · ${included} included · ${off} off` }),
+    el("span", { class: "section-stat", text: `${sendersData.length} discovered · ${included.length} included · ${excluded.length} off` }),
   ]);
   frag.appendChild(head);
   frag.appendChild(el("p", {
@@ -87,29 +89,43 @@ function buildEmailSection() {
 
   frag.appendChild(buildAddRow());
 
-  const table = el("div", { class: "table" });
-  const thead = el("div", { class: "thead grid-senders" }, [
-    el("span", { text: "Sender" }),
-    el("span", { class: "th-r", text: "Image emails" }),
-    el("span", { class: "th-vendor", text: "Mapped vendor" }),
-    el("span", { class: "th-r", text: "Include" }),
-  ]);
-  table.appendChild(thead);
-
-  const rows = sendersData.slice().sort((a, b) =>
-    (b.discovered_count - a.discovered_count) || a.address.localeCompare(b.address));
-
-  if (!rows.length) {
-    table.appendChild(el("div", { class: "empty-table", text: "No senders yet. Add an address or domain above." }));
-  } else {
-    rows.forEach((s) => table.appendChild(senderRow(s)));
-  }
-  frag.appendChild(table);
+  // v3 design: senders split into two scrolling cards — Included (importing) and
+  // Not included — each capped in height so a long list never stretches the page.
+  frag.appendChild(senderGroup("Included", "included", included, "No senders are included right now."));
+  frag.appendChild(senderGroup("Not included", "excluded", excluded, "Everything discovered is being imported."));
 
   frag.appendChild(el("p", {
     class: "section-note",
     text: "Changes apply on the next sync (hourly). Turning a sender off stops importing new attachments; images already in the library stay.",
   }));
+  return frag;
+}
+
+// One Included / Not-included group: a labelled header + a card whose rows scroll
+// within a fixed height (the column header stays fixed above the scrolling rows).
+function senderGroup(label, kind, senders, emptyText) {
+  const frag = document.createDocumentFragment();
+  frag.appendChild(el("div", { class: "sender-group-label" }, [
+    el("span", { class: `sender-dot ${kind}` }),
+    el("span", { class: "sender-group-name", text: label }),
+    el("span", { class: "sender-group-count", text: String(senders.length) }),
+  ]));
+
+  const table = el("div", { class: "table" });
+  table.appendChild(el("div", { class: "thead grid-senders" }, [
+    el("span", { text: "Sender" }),
+    el("span", { class: "th-r", text: "Image emails" }),
+    el("span", { class: "th-vendor", text: "Mapped vendor" }),
+    el("span", { class: "th-r", text: "Include" }),
+  ]));
+  if (senders.length) {
+    const scroll = el("div", { class: "sender-scroll" });
+    senders.forEach((s) => scroll.appendChild(senderRow(s)));
+    table.appendChild(scroll);
+  } else {
+    table.appendChild(el("div", { class: "empty-table", text: emptyText }));
+  }
+  frag.appendChild(table);
   return frag;
 }
 
