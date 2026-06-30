@@ -40,3 +40,6 @@ data/
 .DS_Store
 .idea/
 .vscode/
+
+# Local bind-mount data dir (FOLIO_DATA_DIR default)
+/data/

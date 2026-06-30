@@ -25,6 +25,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-folio}
       POSTGRES_DB: ${POSTGRES_DB:-folio}
     volumes:
+      # The DATABASE is the ONLY thing kept as a Docker-managed named volume (it
+      # lives in Container Station's Docker storage). Postgres runs best on local
+      # managed storage and bind-mounting a PGDATA dir onto a NAS share invites
+      # permission/fsync trouble — so the DB stays here while all FILE data
+      # (images, thumbnails, tokens, backups) goes to FOLIO_DATA_DIR on your drive.
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-folio} -d ${POSTGRES_DB:-folio}"]
@@ -51,11 +56,14 @@ services:
       # values, which mangles `$`-laden secrets like ACCESS_TOKEN_HASH (argon2);
       # pydantic never interpolates, so the value survives intact.
       - ./.env:/app/.env:ro          # ro: app config/secrets (read by the app)
-      - media:/data/media            # rw: writes original images
-      - thumbnails:/data/thumbnails  # rw: may pre-generate thumbnails
-      - tokens:/data/tokens          # rw: stores encrypted OAuth tokens
-      - backups:/data/backups        # rw: pg_dump archives (worker backup-db)
-      - browser_tmp:/data/tmp        # rw: browser downloads + single-job lock
+      # File data -> FOLIO_DATA_DIR on the host (default ./data = /share/Folio/data
+      # when you run compose from /share/Folio). Set FOLIO_DATA_DIR in .env to use
+      # a different drive. These are bind mounts, so the bytes live on YOUR drive.
+      - ${FOLIO_DATA_DIR:-./data}/media:/data/media            # rw: original images
+      - ${FOLIO_DATA_DIR:-./data}/thumbnails:/data/thumbnails  # rw: thumbnail cache
+      - ${FOLIO_DATA_DIR:-./data}/tokens:/data/tokens          # rw: encrypted OAuth tokens
+      - ${FOLIO_DATA_DIR:-./data}/backups:/data/backups        # rw: pg_dump archives
+      - ${FOLIO_DATA_DIR:-./data}/browser_tmp:/data/tmp        # rw: browser scratch + lock
       - ./secrets:/data/secrets:ro   # ro: Google client secrets JSON
     # Chromium needs more than the default 64 MB /dev/shm. We give it 512 MB
     # AND pass --disable-dev-shm-usage in code, so a single headless tab never
@@ -78,9 +86,9 @@ services:
       - "${PORTAL_PORT:-8899}:8080"
     volumes:
       - ./.env:/app/.env:ro          # ro: app config/secrets (read by the app)
-      - media:/data/media:ro         # ro: serves original bytes
-      - thumbnails:/data/thumbnails  # rw: thumbnail cache
-      - tokens:/data/tokens:ro       # ro: never mutates tokens
+      - ${FOLIO_DATA_DIR:-./data}/media:/data/media:ro         # ro: serves original bytes
+      - ${FOLIO_DATA_DIR:-./data}/thumbnails:/data/thumbnails  # rw: thumbnail cache
+      - ${FOLIO_DATA_DIR:-./data}/tokens:/data/tokens:ro       # ro: never mutates tokens
     mem_limit: 1g
 
   # One-shot DB backup. Not started by `docker compose up` (it's behind the
@@ -101,13 +109,11 @@ services:
     command: ["backup-db"]
     volumes:
       - ./.env:/app/.env:ro          # ro: app config/secrets (read by the app)
-      - backups:/data/backups        # rw: pg_dump archives
+      - ${FOLIO_DATA_DIR:-./data}/backups:/data/backups        # rw: pg_dump archives
     mem_limit: 512m
 
 volumes:
+  # The database is the ONLY Docker-managed named volume (it stays in Container
+  # Station's storage). All other data is bind-mounted under FOLIO_DATA_DIR — see
+  # the per-service volume blocks above.
   pgdata:
-  media:        # single shared library volume (worker rw, portal ro)
-  thumbnails:
-  tokens:
-  backups:      # timestamped pg_dump archives (worker rw, backup rw)
-  browser_tmp:  # vendor-browser downloads + the single-job flock
